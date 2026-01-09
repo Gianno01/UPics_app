@@ -1,26 +1,27 @@
 package com.example.upics
 
 import android.Manifest
+import android.net.Uri
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,17 +53,52 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// --- Navigazione ---
+// --- Navigazione Principale e Gestione Dati ---
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+
+    // Variabile di stato per conservare le foto selezionate dalla galleria
+    var selectedPhotos by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    // Launcher per il Photo Picker di Android (Galleria)
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        // Se l'utente ha selezionato qualcosa...
+        if (uris.isNotEmpty()) {
+            selectedPhotos = uris // 1. Salva le foto
+            navController.navigate("preview") // 2. Vai alla schermata di anteprima
+        }
+    }
+
     NavHost(navController = navController, startDestination = "login") {
+
+        // Rotta 1: Login
         composable("login") { LoginScreen(navController) }
-        composable("home") { HomeScreen() }
+
+        // Rotta 2: Home
+        composable("home") {
+            HomeScreen(
+                navController = navController,
+                // Passiamo la funzione che apre la galleria
+                onOpenGallery = {
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
+            )
+        }
+
+        // Rotta 3: Anteprima (Usa il file PreviewScreen.kt esterno)
+        composable("preview") {
+            // Passiamo le foto vere salvate nella variabile di stato
+            PreviewScreen(navController = navController, photos = selectedPhotos)
+        }
     }
 }
 
-// --- Schermata Login (semplificata per il test) ---
+// --- Schermata Login (QR Code Simulato) ---
 @Composable
 fun LoginScreen(navController: NavController) {
     val context = LocalContext.current
@@ -74,7 +109,7 @@ fun LoginScreen(navController: NavController) {
             Toast.makeText(context, "Connesso!", Toast.LENGTH_SHORT).show()
             navController.navigate("home") { popUpTo("login") { inclusive = true } }
         } else {
-            Toast.makeText(context, "Permesso necessario", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Permesso fotocamera necessario", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -85,10 +120,15 @@ fun LoginScreen(navController: NavController) {
     }
 }
 
+// --- Schermata Home ---
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    navController: NavController? = null,
+    onOpenGallery: () -> Unit = {} // Funzione per aprire la galleria
+) {
     val context = LocalContext.current
 
+    // Configurazione ImageLoader (per GIF e SVG)
     val imageLoader = ImageLoader.Builder(context)
         .components {
             if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
@@ -96,12 +136,11 @@ fun HomeScreen() {
         }
         .build()
 
-    // Painter per lo sfondo GIF
+    // Risorse Immagini
     val backgroundPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.bho).build(),
         imageLoader = imageLoader
     )
-    // Painter per il logo SVG
     val logoPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.logo).build(),
         imageLoader = imageLoader
@@ -117,7 +156,7 @@ fun HomeScreen() {
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // 2. TOP BAR (Logo e Stato Connessione)
+            // 2. HEADER TOP BAR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,15 +179,42 @@ fun HomeScreen() {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Connected - Turin(IT)",
-                        color = Color.White, // Testo bianco per contrasto sullo sfondo scuro
+                        color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+
             Spacer(modifier = Modifier.height(20.dp))
+
+
+            // 3. ELEMENTO DECORATIVO CENTRALE
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = " ",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Image(
+                    // Sostituisci 'frame_home' con il nome esatto del tuo file in res/drawable
+                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.scritta),
+                    contentDescription = "Polaroid Frame",
+                    contentScale = ContentScale.Fit, // Adatta l'immagine senza tagliarla
+                    modifier = Modifier
+                        .size(320.dp) // Imposta la grandezza che preferisci
+                    // .padding(8.dp) // Rimuovi o aggiungi padding se serve
+                )
+                // ---------------------
+            }
         }
 
-        // 4. PANNELLO INFERIORE (Contenitore bianco arrotondato)
+        // 4. PANNELLO INFERIORE (Menu)
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -162,19 +228,34 @@ fun HomeScreen() {
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Riga dei 3 Pulsanti Icona
+                // Riga Icone
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    ActionButton(icon = Icons.Default.Upload, text = "Upload\nphotos")
-                    ActionButton(icon = Icons.Default.CameraAlt, text = "Take\nphotos")
-                    ActionButton(icon = Icons.Default.History, text = "History")
+                    // PULSANTE UPLOAD (Apre Galleria)
+                    ActionButton(
+                        icon = Icons.Default.Upload,
+                        text = "Upload\nphotos",
+                        onClick = { onOpenGallery() }
+                    )
+                    // PULSANTE TAKE PHOTO (Simulato per ora)
+                    ActionButton(
+                        icon = Icons.Default.PhotoCamera,
+                        text = "Take\nphotos",
+                        onClick = { Toast.makeText(context, "Usa Upload per ora", Toast.LENGTH_SHORT).show() }
+                    )
+                    // PULSANTE HISTORY
+                    ActionButton(
+                        icon = Icons.Default.DateRange,
+                        text = "History",
+                        onClick = { Toast.makeText(context, "History", Toast.LENGTH_SHORT).show() }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Pulsanti Rettangolari Inferiori
+                // Pulsanti Testuali
                 MenuButton(text = "Need Help?", color = Color(0xFFE0E0E0), textColor = Color.Black)
                 Spacer(modifier = Modifier.height(12.dp))
                 MenuButton(text = "About Us", color = Color(0xFFE0E0E0), textColor = Color.Black)
@@ -185,14 +266,12 @@ fun HomeScreen() {
     }
 }
 
-// --- Componenti Riutilizzabili ---
+// --- Componenti UI Riutilizzabili ---
 
-// Pulsante Quadrato con Icona e Testo
 @Composable
-fun ActionButton(icon: ImageVector, text: String) {
-    val context = LocalContext.current
+fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {
     OutlinedButton(
-        onClick = { Toast.makeText(context, text.replace("\n", " "), Toast.LENGTH_SHORT).show() },
+        onClick = onClick,
         modifier = Modifier.size(100.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black),
@@ -206,13 +285,14 @@ fun ActionButton(icon: ImageVector, text: String) {
     }
 }
 
-// Pulsante Rettangolare Largo
 @Composable
 fun MenuButton(text: String, color: Color, textColor: Color) {
     val context = LocalContext.current
     Button(
         onClick = { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() },
-        modifier = Modifier.fillMaxWidth().height(50.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp),
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = textColor),
         border = if (color == Color.Black) null else BorderStroke(1.dp, Color.Gray)
