@@ -50,15 +50,19 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
+// 1. Set di icone esteso di Google (per TextFields, Crop, Emoji icons)
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
-    implementation("androidx.navigation:navigation-compose:2.7.7")
-
-    implementation("io.coil-kt:coil-compose:2.6.0")
-    implementation("io.coil-kt:coil-gif:2.6.0")
-    implementation("io.coil-kt:coil-svg:2.6.0")
+    // 2. Libreria per il RITAGLIO (Crop) delle immagini
+    implementation("com.vanniktech:android-image-cropper:4.5.0")
+    implementation("androidx.navigation:navigation-compose:2.9.6")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     // Per la fotocamera (QR Code) - Useremo una libreria semplice per iniziare
-    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    //noinspection Aligned16KB
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // Nota: Per un'implementazione completa della fotocamera serve CameraX,
     // ma qui imposteremo la logica di base.
     implementation("androidx.compose.material:material-icons-extended")

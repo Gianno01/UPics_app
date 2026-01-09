@@ -14,7 +14,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -24,7 +23,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -34,9 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
 import coil.decode.GifDecoder
@@ -53,35 +53,27 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// --- Navigazione Principale e Gestione Dati ---
+// --- GESTIONE NAVIGAZIONE ---
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-
-    // Variabile di stato per conservare le foto selezionate dalla galleria
     var selectedPhotos by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
-    // Launcher per il Photo Picker di Android (Galleria)
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        // Se l'utente ha selezionato qualcosa...
         if (uris.isNotEmpty()) {
-            selectedPhotos = uris // 1. Salva le foto
-            navController.navigate("preview") // 2. Vai alla schermata di anteprima
+            selectedPhotos = uris
+            navController.navigate("preview")
         }
     }
 
     NavHost(navController = navController, startDestination = "login") {
-
-        // Rotta 1: Login
         composable("login") { LoginScreen(navController) }
 
-        // Rotta 2: Home
         composable("home") {
             HomeScreen(
                 navController = navController,
-                // Passiamo la funzione che apre la galleria
                 onOpenGallery = {
                     galleryLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -90,15 +82,24 @@ fun AppNavigation() {
             )
         }
 
-        // Rotta 3: Anteprima (Usa il file PreviewScreen.kt esterno)
         composable("preview") {
-            // Passiamo le foto vere salvate nella variabile di stato
             PreviewScreen(navController = navController, photos = selectedPhotos)
+        }
+
+        composable(
+            route = "magic_mode/{photoUri}",
+            arguments = listOf(navArgument("photoUri") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val uriString = backStackEntry.arguments?.getString("photoUri")
+            if (uriString != null) {
+                val uri = Uri.parse(uriString)
+                MagicModeScreen(navController = navController, photoUri = uri)
+            }
         }
     }
 }
 
-// --- Schermata Login (QR Code Simulato) ---
+// --- SCHERMATA LOGIN ---
 @Composable
 fun LoginScreen(navController: NavController) {
     val context = LocalContext.current
@@ -120,15 +121,15 @@ fun LoginScreen(navController: NavController) {
     }
 }
 
-// --- Schermata Home ---
+// --- SCHERMATA HOME (MODIFICATA) ---
 @Composable
 fun HomeScreen(
     navController: NavController? = null,
-    onOpenGallery: () -> Unit = {} // Funzione per aprire la galleria
+    onOpenGallery: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
-    // Configurazione ImageLoader (per GIF e SVG)
+    // Configurazione Loader per tutte le immagini (Gif, Svg, Png)
     val imageLoader = ImageLoader.Builder(context)
         .components {
             if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
@@ -136,18 +137,20 @@ fun HomeScreen(
         }
         .build()
 
-    // Risorse Immagini
     val backgroundPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.bho).build(),
         imageLoader = imageLoader
     )
-    val logoPainter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context).data(R.raw.logo).build(),
+
+    // Painter per la nuova immagine "scritta.png"
+    // Assicurati che il file sia in res/raw/scritta.png
+    val scrittaPainter = rememberAsyncImagePainter(
+        model = ImageRequest.Builder(context).data(R.raw.scritta).build(),
         imageLoader = imageLoader
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. SFONDO GIF
+        // Sfondo GIF
         Image(
             painter = backgroundPainter,
             contentDescription = null,
@@ -156,65 +159,31 @@ fun HomeScreen(
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // 2. HEADER TOP BAR
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Image(
-                    painter = logoPainter,
-                    contentDescription = "Logo Upics",
-                    modifier = Modifier.size(60.dp)
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(Color.Green)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Connected - Turin(IT)",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            // HEADER
+            CommonHeader()
 
             Spacer(modifier = Modifier.height(20.dp))
 
-
-            // 3. ELEMENTO DECORATIVO CENTRALE
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // --- NUOVA SEZIONE CENTRALE ---
+            // Al posto del rettangolo Polaroid, mostriamo l'immagine "scritta"
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f), // Occupa lo spazio disponibile al centro
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = " ",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
                 Image(
-                    // Sostituisci 'frame_home' con il nome esatto del tuo file in res/drawable
-                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.scritta),
-                    contentDescription = "Polaroid Frame",
-                    contentScale = ContentScale.Fit, // Adatta l'immagine senza tagliarla
+                    painter = scrittaPainter,
+                    contentDescription = "Scritta Home",
                     modifier = Modifier
-                        .size(320.dp) // Imposta la grandezza che preferisci
-                    // .padding(8.dp) // Rimuovi o aggiungi padding se serve
+                        .fillMaxWidth(0.8f) // Occupa l'80% della larghezza
+                        .wrapContentHeight(),
+                    contentScale = ContentScale.Fit
                 )
-                // ---------------------
             }
         }
 
-        // 4. PANNELLO INFERIORE (Menu)
+        // MENU INFERIORE
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -228,24 +197,20 @@ fun HomeScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Riga Icone
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    // PULSANTE UPLOAD (Apre Galleria)
                     ActionButton(
                         icon = Icons.Default.Upload,
                         text = "Upload\nphotos",
                         onClick = { onOpenGallery() }
                     )
-                    // PULSANTE TAKE PHOTO (Simulato per ora)
                     ActionButton(
                         icon = Icons.Default.PhotoCamera,
                         text = "Take\nphotos",
                         onClick = { Toast.makeText(context, "Usa Upload per ora", Toast.LENGTH_SHORT).show() }
                     )
-                    // PULSANTE HISTORY
                     ActionButton(
                         icon = Icons.Default.DateRange,
                         text = "History",
@@ -255,7 +220,6 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Pulsanti Testuali
                 MenuButton(text = "Need Help?", color = Color(0xFFE0E0E0), textColor = Color.Black)
                 Spacer(modifier = Modifier.height(12.dp))
                 MenuButton(text = "About Us", color = Color(0xFFE0E0E0), textColor = Color.Black)
@@ -266,7 +230,7 @@ fun HomeScreen(
     }
 }
 
-// --- Componenti UI Riutilizzabili ---
+// --- UI COMPONENTI RIUTILIZZABILI ---
 
 @Composable
 fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {

@@ -1,6 +1,6 @@
 package com.example.upics
 
-import android.net.Uri // Importante per gestire le foto vere
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,8 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -31,12 +31,11 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 
-// Modifica: Ora la funzione accetta una lista di Uri (foto vere)
 @Composable
 fun PreviewScreen(navController: NavController, photos: List<Uri>) {
     val context = LocalContext.current
 
-    // Se la lista è vuota, torniamo indietro per evitare errori
+    // Se la lista è vuota, torniamo indietro
     if (photos.isEmpty()) {
         LaunchedEffect(Unit) {
             Toast.makeText(context, "Nessuna foto selezionata", Toast.LENGTH_SHORT).show()
@@ -45,15 +44,45 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
         return
     }
 
-    // Stato: Foto selezionata (di default la prima della lista)
+    // --- STATI ---
     var selectedPhoto by remember { mutableStateOf(photos[0]) }
+
+    // Mappa per ricordare i filtri applicati a ciascuna foto (Uri -> Nome Filtro)
+    val filterMap = remember { mutableStateMapOf<Uri, String>() }
+
+    // --- RICEZIONE DATI DAL MAGIC MODE (CORRETTO E SEMPLIFICATO) ---
+    // 1. Otteniamo il riferimento al "magazzino dati" della schermata corrente
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+
+    // 2. Leggiamo i valori (saranno nulli finché non torniamo da MagicMode)
+    val returnedFilterName = savedStateHandle?.get<String>("result_filter")
+    val returnedUriString = savedStateHandle?.get<String>("result_uri")
+
+    // 3. Reagiamo quando i dati cambiano (ovvero quando torniamo indietro)
+    LaunchedEffect(returnedFilterName, returnedUriString) {
+        if (returnedFilterName != null && returnedUriString != null) {
+            val uri = Uri.parse(returnedUriString)
+
+            // Aggiorniamo la mappa
+            filterMap[uri] = returnedFilterName
+
+            // Puliamo i dati dal savedStateHandle per evitare che vengano riletti per errore
+            savedStateHandle.remove<String>("result_filter")
+            savedStateHandle.remove<String>("result_uri")
+        }
+    }
+
+    // --- CALCOLO FILTRO CORRENTE ---
+    val activeFilterName = filterMap[selectedPhoto] ?: "Normal"
+    val activeFilterMatrix = FilterUtils.filters.find { it.name == activeFilterName }?.colorMatrix ?: ColorMatrix()
+
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        CommonHeader() // Usa l'header definito in precedenza o copialo qui se serve
+        CommonHeader()
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -76,7 +105,7 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
 
-            Text(text = "Select", fontSize = 20.sp, color = Color.Black)
+            Text(text = "Preview Mode", fontSize = 20.sp, color = Color.Black)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -105,6 +134,8 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                         ),
                         contentDescription = "Selected Photo",
                         contentScale = ContentScale.Crop,
+                        // APPLICAZIONE VISIVA DEL FILTRO
+                        colorFilter = ColorFilter.colorMatrix(activeFilterMatrix),
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -154,8 +185,12 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                 .padding(horizontal = 24.dp, vertical = 24.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // PULSANTE ADD FILTER -> ORA PORTA ALLA MODIFICA (Magic Mode)
             OutlinedButton(
-                onClick = { /* Filtri */ },
+                onClick = {
+                    val encodedUri = Uri.encode(selectedPhoto.toString())
+                    navController.navigate("magic_mode/$encodedUri")
+                },
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, Color.Black),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color.Black),
@@ -165,9 +200,14 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Add Filter", fontWeight = FontWeight.SemiBold)
             }
+
             Spacer(modifier = Modifier.width(16.dp))
+
+            // PULSANTE PRINT
             Button(
-                onClick = { Toast.makeText(context, "Printing...", Toast.LENGTH_SHORT).show() },
+                onClick = {
+                    Toast.makeText(context, "Printing photo with filter: $activeFilterName", Toast.LENGTH_SHORT).show()
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A), contentColor = Color.White),
                 modifier = Modifier.weight(1f).height(56.dp)
