@@ -32,10 +32,14 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 
 @Composable
-fun PreviewScreen(navController: NavController, photos: List<Uri>) {
+fun PreviewScreen(
+    navController: NavController,
+    photos: List<Uri>,
+    // NUOVO PARAMETRO: Riceviamo la mappa dal genitore (MainActivity)
+    filterMap: MutableMap<Uri, String>
+) {
     val context = LocalContext.current
 
-    // Se la lista è vuota, torniamo indietro
     if (photos.isEmpty()) {
         LaunchedEffect(Unit) {
             Toast.makeText(context, "Nessuna foto selezionata", Toast.LENGTH_SHORT).show()
@@ -44,29 +48,22 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
         return
     }
 
-    // --- STATI ---
     var selectedPhoto by remember { mutableStateOf(photos[0]) }
 
-    // Mappa per ricordare i filtri applicati a ciascuna foto (Uri -> Nome Filtro)
-    val filterMap = remember { mutableStateMapOf<Uri, String>() }
+    // NOTA: Abbiamo RIMOSSO "val filterMap = remember..." perché ora usiamo quella passata come parametro
 
-    // --- RICEZIONE DATI DAL MAGIC MODE (CORRETTO E SEMPLIFICATO) ---
-    // 1. Otteniamo il riferimento al "magazzino dati" della schermata corrente
+    // --- RICEZIONE DATI ---
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-
-    // 2. Leggiamo i valori (saranno nulli finché non torniamo da MagicMode)
     val returnedFilterName = savedStateHandle?.get<String>("result_filter")
     val returnedUriString = savedStateHandle?.get<String>("result_uri")
 
-    // 3. Reagiamo quando i dati cambiano (ovvero quando torniamo indietro)
     LaunchedEffect(returnedFilterName, returnedUriString) {
         if (returnedFilterName != null && returnedUriString != null) {
             val uri = Uri.parse(returnedUriString)
 
-            // Aggiorniamo la mappa
+            // Aggiorniamo la mappa CONDIVISA
             filterMap[uri] = returnedFilterName
 
-            // Puliamo i dati dal savedStateHandle per evitare che vengano riletti per errore
             savedStateHandle.remove<String>("result_filter")
             savedStateHandle.remove<String>("result_uri")
         }
@@ -105,7 +102,7 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
 
-            Text(text = "Preview Mode", fontSize = 20.sp, color = Color.Black)
+            Text(text = "Select", fontSize = 20.sp, color = Color.Black)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -134,7 +131,6 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                         ),
                         contentDescription = "Selected Photo",
                         contentScale = ContentScale.Crop,
-                        // APPLICAZIONE VISIVA DEL FILTRO
                         colorFilter = ColorFilter.colorMatrix(activeFilterMatrix),
                         modifier = Modifier
                             .weight(1f)
@@ -166,10 +162,16 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                             else Modifier
                         )
                 ) {
+                    // Recuperiamo il filtro per questa specifica miniatura
+                    val thumbFilterName = filterMap[photo] ?: "Normal"
+                    val thumbMatrix = FilterUtils.filters.find { it.name == thumbFilterName }?.colorMatrix
+
                     Image(
                         painter = rememberAsyncImagePainter(model = photo),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        // Opzionale: Applichiamo il filtro anche alla miniatura così vedi subito quali sono modificate
+                        colorFilter = if(thumbMatrix != null) ColorFilter.colorMatrix(thumbMatrix) else null,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -185,7 +187,6 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
                 .padding(horizontal = 24.dp, vertical = 24.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // PULSANTE ADD FILTER -> ORA PORTA ALLA MODIFICA (Magic Mode)
             OutlinedButton(
                 onClick = {
                     val encodedUri = Uri.encode(selectedPhoto.toString())
@@ -203,10 +204,9 @@ fun PreviewScreen(navController: NavController, photos: List<Uri>) {
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // PULSANTE PRINT
             Button(
                 onClick = {
-                    Toast.makeText(context, "Printing photo with filter: $activeFilterName", Toast.LENGTH_SHORT).show()
+                    navController.navigate("resume")
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A), contentColor = Color.White),

@@ -12,7 +12,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,13 +56,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+
+    // 1. STATO CONDIVISO (HOISTED STATE)
+    // Le foto selezionate
     var selectedPhotos by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    // I filtri applicati a ciascuna foto (Questa mappa ora vive qui, al sicuro)
+    val sharedFilterMap = remember { mutableStateMapOf<Uri, String>() }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
             selectedPhotos = uris
+            // Opzionale: puliamo i filtri vecchi se carichiamo nuove foto
+            sharedFilterMap.clear()
             navController.navigate("preview")
         }
     }
@@ -83,7 +89,12 @@ fun AppNavigation() {
         }
 
         composable("preview") {
-            PreviewScreen(navController = navController, photos = selectedPhotos)
+            // 2. Passiamo la mappa condivisa alla schermata di preview
+            PreviewScreen(
+                navController = navController,
+                photos = selectedPhotos,
+                filterMap = sharedFilterMap // Passaggio per riferimento
+            )
         }
 
         composable(
@@ -96,12 +107,27 @@ fun AppNavigation() {
                 MagicModeScreen(navController = navController, photoUri = uri)
             }
         }
+
+        // --- NUOVA ROTTA RESUME ---
+        composable("resume") {
+            ResumeScreen(
+                navController = navController,
+                photos = selectedPhotos,
+                filterMap = sharedFilterMap // Passiamo i filtri per vedere le modifiche
+            )
+        }
     }
 }
 
-// --- SCHERMATA LOGIN ---
+// ... (Il resto del codice: LoginScreen, HomeScreen, ActionButton, etc. rimane UGUALE a prima) ...
+// Per brevità non ricopio tutto il file, ma assicurati di mantenere LoginScreen, HomeScreen e i componenti UI
+// che avevi nel file precedente. Se li hai persi, copiali dalla risposta precedente.
+// Se vuoi che ti riscriva TUTTO il file MainActivity dimmelo.
+
+// --- QUANDO COPI-INCOLLI, MANTIENI LE FUNZIONI LoginScreen, HomeScreen, ActionButton, MenuButton QUI SOTTO ---
 @Composable
 fun LoginScreen(navController: NavController) {
+    // ... (codice uguale a prima)
     val context = LocalContext.current
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -121,12 +147,8 @@ fun LoginScreen(navController: NavController) {
     }
 }
 
-// --- SCHERMATA HOME (MODIFICATA) ---
 @Composable
-fun HomeScreen(
-    navController: NavController? = null,
-    onOpenGallery: () -> Unit = {}
-) {
+fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit = {}) {
     val context = LocalContext.current
 
     // Configurazione Loader per tutte le immagini (Gif, Svg, Png)
@@ -143,7 +165,6 @@ fun HomeScreen(
     )
 
     // Painter per la nuova immagine "scritta.png"
-    // Assicurati che il file sia in res/raw/scritta.png
     val scrittaPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.scritta).build(),
         imageLoader = imageLoader
@@ -229,8 +250,6 @@ fun HomeScreen(
         }
     }
 }
-
-// --- UI COMPONENTI RIUTILIZZABILI ---
 
 @Composable
 fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {

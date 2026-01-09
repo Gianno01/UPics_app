@@ -175,7 +175,10 @@ fun MagicModeScreen(navController: NavController, photoUri: Uri) {
 
             // Tasto Stampa (Esempio azione)
             Button(
-                onClick = { Toast.makeText(context, "Printing with ${currentFilter.name} filter", Toast.LENGTH_SHORT).show() },
+                onClick = { navController.previousBackStackEntry?.savedStateHandle?.set("result_filter", currentFilter.name)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("result_uri", photoUri.toString())
+
+                    navController.navigate("resume")},
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF8BC34A),
