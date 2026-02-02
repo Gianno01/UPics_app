@@ -35,7 +35,6 @@ import coil.request.ImageRequest
 fun PreviewScreen(
     navController: NavController,
     photos: List<Uri>,
-    // NUOVO PARAMETRO: Riceviamo la mappa dal genitore (MainActivity)
     filterMap: MutableMap<Uri, String>
 ) {
     val context = LocalContext.current
@@ -49,8 +48,6 @@ fun PreviewScreen(
     }
 
     var selectedPhoto by remember { mutableStateOf(photos[0]) }
-
-    // NOTA: Abbiamo RIMOSSO "val filterMap = remember..." perché ora usiamo quella passata come parametro
 
     // --- RICEZIONE DATI ---
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle

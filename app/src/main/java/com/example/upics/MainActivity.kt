@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// --- GESTIONE NAVIGAZIONE ---
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -75,8 +74,15 @@ fun AppNavigation() {
     }
 
     NavHost(navController = navController, startDestination = "login") {
+
+        // 1. LOGIN (Scansione QR)
         composable("login") { LoginScreen(navController) }
 
+        // 2. AUTH (Nuova schermata Accedi/Registrati)
+        // Assicurati di aver creato il file AuthScreen.kt nel package com.example.upics
+        composable("auth") { AuthScreen(navController) }
+
+        // 3. HOME (Upload Foto)
         composable("home") {
             HomeScreen(
                 navController = navController,
@@ -88,8 +94,9 @@ fun AppNavigation() {
             )
         }
 
+        // 4. PREVIEW (Selezione Foto)
         composable("preview") {
-            // 2. Passiamo la mappa condivisa alla schermata di preview
+            // Passiamo la mappa condivisa alla schermata di preview
             PreviewScreen(
                 navController = navController,
                 photos = selectedPhotos,
@@ -97,6 +104,7 @@ fun AppNavigation() {
             )
         }
 
+        // 5. MAGIC MODE (Editor Singola Foto)
         composable(
             route = "magic_mode/{photoUri}",
             arguments = listOf(navArgument("photoUri") { type = NavType.StringType })
@@ -108,41 +116,13 @@ fun AppNavigation() {
             }
         }
 
-        // --- NUOVA ROTTA RESUME ---
+        // 6. RESUME (Riepilogo e Pagamento)
         composable("resume") {
             ResumeScreen(
                 navController = navController,
                 photos = selectedPhotos,
                 filterMap = sharedFilterMap // Passiamo i filtri per vedere le modifiche
             )
-        }
-    }
-}
-
-// ... (Il resto del codice: LoginScreen, HomeScreen, ActionButton, etc. rimane UGUALE a prima) ...
-// Per brevità non ricopio tutto il file, ma assicurati di mantenere LoginScreen, HomeScreen e i componenti UI
-// che avevi nel file precedente. Se li hai persi, copiali dalla risposta precedente.
-// Se vuoi che ti riscriva TUTTO il file MainActivity dimmelo.
-
-// --- QUANDO COPI-INCOLLI, MANTIENI LE FUNZIONI LoginScreen, HomeScreen, ActionButton, MenuButton QUI SOTTO ---
-@Composable
-fun LoginScreen(navController: NavController) {
-    // ... (codice uguale a prima)
-    val context = LocalContext.current
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            Toast.makeText(context, "Connesso!", Toast.LENGTH_SHORT).show()
-            navController.navigate("home") { popUpTo("login") { inclusive = true } }
-        } else {
-            Toast.makeText(context, "Permesso fotocamera necessario", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Button(onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }) {
-            Text("Scansiona QR per Connetterti")
         }
     }
 }
@@ -185,8 +165,7 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // --- NUOVA SEZIONE CENTRALE ---
-            // Al posto del rettangolo Polaroid, mostriamo l'immagine "scritta"
+            // SEZIONE CENTRALE (Scritta)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
