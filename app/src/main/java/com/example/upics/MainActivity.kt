@@ -1,47 +1,19 @@
 package com.example.upics
 
-import android.Manifest
 import android.net.Uri
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import coil.ImageLoader
-import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.decode.SvgDecoder
-import coil.request.ImageRequest
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,38 +23,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    // 1. STATO CONDIVISO (HOISTED STATE)
-    // Le foto selezionate
-    var selectedPhotos by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    // I filtri applicati a ciascuna foto (Questa mappa ora vive qui, al sicuro)
-    val sharedFilterMap = remember { mutableStateMapOf<Uri, String>() }
+    // --- STATO CONDIVISO ---
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var finalEditState by remember { mutableStateOf(PhotoEditState()) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            selectedPhotos = uris
-            // Opzionale: puliamo i filtri vecchi se carichiamo nuove foto
-            sharedFilterMap.clear()
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            selectedPhotoUri = uri
+            finalEditState = PhotoEditState()
             navController.navigate("preview")
         }
     }
 
     NavHost(navController = navController, startDestination = "login") {
 
-        // 1. LOGIN (Scansione QR)
+        // ... (Login, Auth, Home, Preview, MagicMode restano uguali) ...
         composable("login") { LoginScreen(navController) }
-
-        // 2. AUTH (Nuova schermata Accedi/Registrati)
-        // Assicurati di aver creato il file AuthScreen.kt nel package com.example.upics
         composable("auth") { AuthScreen(navController) }
-
-        // 3. HOME (Upload Foto)
         composable("home") {
             HomeScreen(
                 navController = navController,
@@ -93,18 +56,22 @@ fun AppNavigation() {
                 }
             )
         }
-
-        // 4. PREVIEW (Selezione Foto)
         composable("preview") {
-            // Passiamo la mappa condivisa alla schermata di preview
             PreviewScreen(
                 navController = navController,
-                photos = selectedPhotos,
-                filterMap = sharedFilterMap // Passaggio per riferimento
+                photoUri = selectedPhotoUri,
+                onEditClick = {
+                    if (selectedPhotoUri != null) {
+                        val encodedUri = Uri.encode(selectedPhotoUri.toString())
+                        navController.navigate("magic_mode/$encodedUri")
+                    }
+                },
+                onPrintClick = {
+                    finalEditState = PhotoEditState() // Reset o Default
+                    navController.navigate("resume")
+                }
             )
         }
-
-        // 5. MAGIC MODE (Editor Singola Foto)
         composable(
             route = "magic_mode/{photoUri}",
             arguments = listOf(navArgument("photoUri") { type = NavType.StringType })
@@ -112,153 +79,44 @@ fun AppNavigation() {
             val uriString = backStackEntry.arguments?.getString("photoUri")
             if (uriString != null) {
                 val uri = Uri.parse(uriString)
-                MagicModeScreen(navController = navController, photoUri = uri)
-            }
-        }
-
-        // 6. RESUME (Riepilogo e Pagamento)
-        composable("resume") {
-            ResumeScreen(
-                navController = navController,
-                photos = selectedPhotos,
-                filterMap = sharedFilterMap // Passiamo i filtri per vedere le modifiche
-            )
-        }
-    }
-}
-
-@Composable
-fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit = {}) {
-    val context = LocalContext.current
-
-    // Configurazione Loader per tutte le immagini (Gif, Svg, Png)
-    val imageLoader = ImageLoader.Builder(context)
-        .components {
-            if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-            add(SvgDecoder.Factory())
-        }
-        .build()
-
-    val backgroundPainter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context).data(R.raw.bho).build(),
-        imageLoader = imageLoader
-    )
-
-    // Painter per la nuova immagine "scritta.png"
-    val scrittaPainter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context).data(R.raw.scritta).build(),
-        imageLoader = imageLoader
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Sfondo GIF
-        Image(
-            painter = backgroundPainter,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            // HEADER
-            CommonHeader()
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // SEZIONE CENTRALE (Scritta)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f), // Occupa lo spazio disponibile al centro
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = scrittaPainter,
-                    contentDescription = "Scritta Home",
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f) // Occupa l'80% della larghezza
-                        .wrapContentHeight(),
-                    contentScale = ContentScale.Fit
+                MagicModeScreen(
+                    navController = navController,
+                    photoUri = uri,
+                    onSaveMoves = { newState ->
+                        finalEditState = newState
+                        navController.navigate("resume")
+                    }
                 )
             }
         }
 
-        // MENU INFERIORE
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            color = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    ActionButton(
-                        icon = Icons.Default.Upload,
-                        text = "Upload\nphotos",
-                        onClick = { onOpenGallery() }
-                    )
-                    ActionButton(
-                        icon = Icons.Default.PhotoCamera,
-                        text = "Take\nphotos",
-                        onClick = { Toast.makeText(context, "Usa Upload per ora", Toast.LENGTH_SHORT).show() }
-                    )
-                    ActionButton(
-                        icon = Icons.Default.DateRange,
-                        text = "History",
-                        onClick = { Toast.makeText(context, "History", Toast.LENGTH_SHORT).show() }
-                    )
-                }
+        // --- MODIFICHE QUI SOTTO ---
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                MenuButton(text = "Need Help?", color = Color(0xFFE0E0E0), textColor = Color.Black)
-                Spacer(modifier = Modifier.height(12.dp))
-                MenuButton(text = "About Us", color = Color(0xFFE0E0E0), textColor = Color.Black)
-                Spacer(modifier = Modifier.height(12.dp))
-                MenuButton(text = "Terms and Condictions", color = Color.Black, textColor = Color.White)
+        // 1. RESUME SCREEN (Conferma Pagamento)
+        composable("resume") {
+            if (selectedPhotoUri != null) {
+                ResumeScreen(
+                    navController = navController,
+                    photoUri = selectedPhotoUri!!,
+                    editState = finalEditState
+                )
             }
         }
-    }
-}
 
-@Composable
-fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.size(100.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black),
-        border = BorderStroke(2.dp, Color.Black)
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        // 2. PRINTING SCREEN (Stampa in corso)
+        composable("printing") {
+            if (selectedPhotoUri != null) {
+                PrintingScreen(
+                    navController = navController,
+                    photoUri = selectedPhotoUri!!,
+                    editState = finalEditState
+                )
+            }
         }
-    }
-}
 
-@Composable
-fun MenuButton(text: String, color: Color, textColor: Color) {
-    val context = LocalContext.current
-    Button(
-        onClick = { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = textColor),
-        border = if (color == Color.Black) null else BorderStroke(1.dp, Color.Gray)
-    ) {
-        Text(text, fontSize = 16.sp)
+        // 3. SUCCESS SCREEN (Stampa completata)
+        composable("print_success") {
+            PrintSuccessScreen(navController = navController)
+        }
     }
 }

@@ -17,272 +17,192 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import kotlin.math.roundToInt
 
 @Composable
 fun ResumeScreen(
     navController: NavController,
-    photos: List<Uri>,
-    filterMap: Map<Uri, String>
+    photoUri: Uri,
+    editState: PhotoEditState // Riceve lo stato con sticker, testo e filtri
 ) {
     val context = LocalContext.current
 
-    // --- STATI ---
-    var copiesPerPhoto by remember { mutableIntStateOf(1) }
+    // --- DEFINIZIONE STATI (Qui mancava showValidationError) ---
+    var copies by remember { mutableIntStateOf(1) }
     var termsAccepted by remember { mutableStateOf(false) }
-    var newsletterAccepted by remember { mutableStateOf(false) }
+    // Variabile per gestire l'errore se non si accettano i termini
     var showValidationError by remember { mutableStateOf(false) }
 
-    // --- CALCOLI ---
-    val pricePerPhoto = 1.00
-    val totalPhotos = photos.size
-    val totalCopies = totalPhotos * copiesPerPhoto
-    val totalPrice = totalCopies * pricePerPhoto
+    val matrix = FilterUtils.filters.find { it.name == editState.filterName }?.colorMatrix
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
+        modifier = Modifier.fillMaxSize().background(Color.White)
     ) {
-        // 1. HEADER
-        ResumeHeader(onBackClick = { navController.popBackStack() })
+        // Header con Tasto Indietro
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { navController.popBackStack() }, shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(0.dp), modifier = Modifier.size(48.dp), border = BorderStroke(1.dp, Color.Black), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Print", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(16.dp)
-        ) {
-            // 2. CARD RIEPILOGO (Stile Immagine Allegata)
+        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+
+            // --- CARD RIEPILOGO ---
             Card(
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, Color.Black),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
+                modifier = Modifier.fillMaxWidth().height(220.dp)
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // LATO SINISTRO: Collage Foto
+                    // LATO SX: FOTO MODIFICATA
                     Box(
                         modifier = Modifier
-                            .weight(0.4f)
+                            .weight(0.5f)
                             .fillMaxHeight()
                             .padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Mostra una pila di foto (fino a 3)
-                        photos.take(3).forEachIndexed { index, uri ->
-                            val filterName = filterMap[uri] ?: "Normal"
-                            val matrix = FilterUtils.filters.find { it.name == filterName }?.colorMatrix
+                        Card(
+                            shape = RoundedCornerShape(2.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            modifier = Modifier
+                                .fillMaxHeight(0.9f)
+                                .aspectRatio(0.80f)
+                                .border(1.dp, Color.LightGray)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .clipToBounds()
+                                ) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).build()),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        colorFilter = if (matrix != null) ColorFilter.colorMatrix(matrix) else null,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                rotationZ = editState.rotation
+                                                scaleX = editState.scaleX * editState.zoom
+                                                scaleY = editState.scaleY * editState.zoom
+                                            }
+                                    )
 
-                            // Ruotiamo leggermente le foto per effetto "pila"
-                            val rotation = when(index) {
-                                0 -> -10f
-                                1 -> 5f
-                                else -> 0f
+                                    editState.stickers.forEach { sticker ->
+                                        Box(
+                                            modifier = Modifier
+                                                .offset { IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt()) }
+                                                .graphicsLayer(scaleX = sticker.scale, scaleY = sticker.scale)
+                                        ) {
+                                            Text(text = sticker.emoji, fontSize = 40.sp)
+                                        }
+                                    }
+                                }
+
+                                if (editState.caption.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = editState.caption,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
-
-                            Image(
-                                painter = rememberAsyncImagePainter(uri),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                colorFilter = if (matrix != null) ColorFilter.colorMatrix(matrix) else null,
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .rotate(rotation)
-                                    .border(1.dp, Color.White)
-
-                            )
                         }
                     }
 
-                    // LATO DESTRO: Testi e Prezzi (Sfondo Grigio)
+                    // LATO DX: PREZZO
                     Column(
                         modifier = Modifier
-                            .weight(0.6f)
+                            .weight(0.5f)
                             .fillMaxHeight()
-                            .background(Color(0xFFE0E0E0)) // Grigio chiaro
+                            .background(Color(0xFFE0E0E0))
                             .padding(16.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
-                            Text("Resume", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "${copiesPerPhoto}x.................... photos ${String.format("%.2f", pricePerPhoto)}€",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
-
-                        Text(
-                            text = "tot ${String.format("%.2f", totalPrice)}€",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            modifier = Modifier.align(Alignment.End)
-                        )
+                        Text("Order Summary", fontWeight = FontWeight.Bold)
+                        Text("1 photo x $copies", fontSize = 14.sp)
+                        Text("Total: ${String.format("%.2f", copies * 1.0)}€", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.align(Alignment.End))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 3. SELETTORE COPIE
-            Text("Copies per photo:", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(
-                    onClick = { if (copiesPerPhoto > 1) copiesPerPhoto-- },
-                    modifier = Modifier.background(Color.LightGray).size(36.dp)
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = Color.Black)
-                }
-
-                Text(
-                    text = "$copiesPerPhoto",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-
-                IconButton(
-                    onClick = { copiesPerPhoto++ },
-                    modifier = Modifier.background(Color.LightGray).size(36.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Increase", tint = Color.Black)
-                }
+            // CONTATORE COPIE
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (copies > 1) copies-- }, modifier = Modifier.background(Color.LightGray)) { Icon(Icons.Default.Remove, null) }
+                Text("$copies", fontSize = 20.sp, modifier = Modifier.padding(horizontal = 16.dp))
+                IconButton(onClick = { copies++ }, modifier = Modifier.background(Color.LightGray)) { Icon(Icons.Default.Add, null) }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 4. CHECKBOXES
-            // Termini e Condizioni
+            // CHECKBOX TERMINI
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = termsAccepted,
                     onCheckedChange = {
                         termsAccepted = it
-                        if(it) showValidationError = false
-                    },
-                    colors = CheckboxDefaults.colors(checkedColor = Color.Black)
+                        if(it) showValidationError = false // Resetta errore se accetta
+                    }
                 )
-                Text(
-                    buildAnnotatedString {
-                        append("I ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append("agree")
-                        }
-                        append(" to Terms and Conditions and Privacy Policy*")
-                    },
-                    fontSize = 12.sp,
-                    color = if (showValidationError) Color.Red else Color.Black
-                )
+                Text("I agree to Terms & Conditions", fontSize = 12.sp)
             }
 
-            // Newsletter
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = newsletterAccepted,
-                    onCheckedChange = { newsletterAccepted = it },
-                    colors = CheckboxDefaults.colors(checkedColor = Color.Black)
-                )
-                Text(
-                    text = "Send me information about new products and service.",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-
-            // Messaggio Errore Rosso
+            // MESSAGGIO ERRORE ROSSO
             if (showValidationError) {
                 Text(
-                    text = "Please Read the licensing terms and check the box to accept them.",
+                    text = "Please accept terms to continue.",
                     color = Color.Red,
                     fontSize = 12.sp,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(start = 12.dp)
                 )
             }
         }
 
-        // 5. BOTTONE PAY & PRINT
+        // TASTO PAGA (Naviga a Printing se ok)
         Button(
             onClick = {
-                if (!termsAccepted) {
-                    showValidationError = true
+                if (termsAccepted) {
+                    navController.navigate("printing")
                 } else {
-                    // Qui implementeremo la schermata di pagamento
-                    Toast.makeText(context, "Proceeding to Payment...", Toast.LENGTH_SHORT).show()
+                    showValidationError = true
                 }
             },
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8BC34A), // Verde
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .height(56.dp)
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A)),
+            modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Pay & Print", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Pay & Print")
         }
     }
 }
-
-// Componente Header Semplice
-@Composable
-fun ResumeHeader(onBackClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Tasto Indietro Quadrato
-        OutlinedButton(
-            onClick = onBackClick,
-            shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.size(48.dp),
-            border = BorderStroke(1.dp, Color.Black),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Linea verticale decorativa e Testo
-        Row(modifier = Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(Color.Black))
-            Spacer(modifier = Modifier.width(16.dp))
-            Text("Print", fontSize = 24.sp, color = Color.Black)
-        }
-    }
-}
-
-
-
