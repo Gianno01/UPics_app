@@ -66,6 +66,7 @@ dependencies {
     // Nota: Per un'implementazione completa della fotocamera serve CameraX,
     // ma qui imposteremo la logica di base.
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.compose.foundation)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

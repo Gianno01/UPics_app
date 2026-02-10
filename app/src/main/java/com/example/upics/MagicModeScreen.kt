@@ -1,8 +1,10 @@
 package com.example.upics
 
+import android.content.res.Configuration
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,20 +14,26 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -33,11 +41,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -49,103 +59,266 @@ fun MagicModeScreen(
     photoUri: Uri,
     onSaveMoves: (PhotoEditState) -> Unit
 ) {
-    val context = LocalContext.current
-
-    // Stato locale delle modifiche (si resetta se esci e rientri, come richiesto dall'alert)
+    // Stati
     var editState by remember { mutableStateOf(PhotoEditState()) }
     var activeTool by remember { mutableStateOf(EditorTool.NONE) }
-    var showExitDialog by remember { mutableStateOf(false) } // Per il dialog di conferma
+    var showExitDialog by remember { mutableStateOf(false) }
 
+    // Rileva orientamento
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // Gestione tasto fisico Indietro
-    BackHandler {
-        showExitDialog = true
-    }
+    // Intercetta il tasto "Indietro" fisico
+    BackHandler { showExitDialog = true }
 
-    // --- ALERT DIALOG ---
+    // Dialog conferma uscita
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("Attenzione") },
-            text = { Text("Se torni indietro perderai le modifiche. Continuare?") },
+            title = { Text("Discard Changes?") },
+            text = { Text("If you go back now, you will lose your magic edits.") },
             confirmButton = {
-                TextButton(onClick = {
-                    showExitDialog = false
-                    navController.popBackStack() // Torna indietro perdendo tutto
-                }) {
-                    Text("Sì, esci", color = Color.Red)
-                }
+                Button(
+                    onClick = {
+                        showExitDialog = false
+                        navController.popBackStack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Discard") }
             },
             dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text("Annulla")
-                }
+                TextButton(onClick = { showExitDialog = false }) { Text("Keep Editing") }
             }
         )
     }
 
-    Scaffold(
-        containerColor = Color.White,
-        topBar = {
-            if (!isLandscape) {
-                MagicModeHeader(onBackClick = { showExitDialog = true })
+    // --- LOGICA DI LAYOUT ADATTIVO ---
+    if (isLandscape) {
+        // === LANDSCAPE (ORIZZONTALE) ===
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFFAFAFA))
+        ) {
+            // 1. SINISTRA: Area Foto (Massimizzata)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Foto quadrata, ma che non esce dallo schermo in altezza
+                Box(modifier = Modifier.fillMaxHeight(0.9f).aspectRatio(1f)) {
+                    PolaroidEditorView(photoUri, editState) { editState = it }
+                }
             }
-        },
-        bottomBar = {
-            if (!isLandscape) {
-                BottomToolbar(
-                    activeTool = activeTool,
-                    onToolSelected = { activeTool = if (activeTool == it) EditorTool.NONE else it },
-                    onSave = { onSaveMoves(editState) }, // SALVA E VAI A STAMPA
-                    content = {
-                        ActiveToolPanel(activeTool, editState, onStateChange = { newState -> editState = newState }, context = context)
+
+            // 2. DESTRA: Barra Strumenti Laterale
+            Surface(
+                modifier = Modifier
+                    .width(360.dp)
+                    .fillMaxHeight(),
+                shadowElevation = 16.dp,
+                color = Color.White
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+
+                    // A. Intestazione + Area Opzioni (Scrollabile)
+                    // Questa parte prende tutto lo spazio in alto
+                    Column(
+                        modifier = Modifier
+                            .weight(1f) // Spinge i controlli in basso
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        Text("Magic Tools ✨", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
+
+                        // Qui appaiono gli Slider, le Emoji, i Filtri quando selezioni uno strumento
+                        AnimatedVisibility(visible = activeTool != EditorTool.NONE) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .padding(8.dp)
+                            ) {
+                                ActiveToolOptions(
+                                    activeTool = activeTool,
+                                    editState = editState,
+                                    photoUri = photoUri,
+                                    onStateChange = { editState = it }
+                                )
+                            }
+                        }
                     }
-                )
+
+                    Divider(color = Color(0xFFEEEEEE))
+
+                    // B. PLANCIA DI COMANDO (Fissa in Basso)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        // 1. Le 4 Icone degli Strumenti (Sopra i tasti azione)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            EditorToolButton(Icons.Default.AutoAwesome, "Filters", activeTool == EditorTool.FILTER) {
+                                activeTool = if (activeTool == EditorTool.FILTER) EditorTool.NONE else EditorTool.FILTER
+                            }
+                            EditorToolButton(Icons.Default.TextFields, "Text", activeTool == EditorTool.TEXT) {
+                                activeTool = if (activeTool == EditorTool.TEXT) EditorTool.NONE else EditorTool.TEXT
+                            }
+                            EditorToolButton(Icons.Default.EmojiEmotions, "Stickers", activeTool == EditorTool.EMOJI) {
+                                activeTool = if (activeTool == EditorTool.EMOJI) EditorTool.NONE else EditorTool.EMOJI
+                            }
+                            EditorToolButton(Icons.Default.CropRotate, "Transform", activeTool == EditorTool.TRANSFORM) {
+                                activeTool = if (activeTool == EditorTool.TRANSFORM) EditorTool.NONE else EditorTool.TRANSFORM
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 2. I Tasti Azione (Freccia e Salva)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Tasto Indietro (Sinistra)
+                            OutlinedIconButton(
+                                onClick = { showExitDialog = true },
+                                shape = CircleShape,
+                                border = BorderStroke(1.dp, Color.LightGray),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+
+                            // Tasto Salva (Destra - Grande)
+                            Button(
+                                onClick = { onSaveMoves(editState) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF8BC34A),
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Save", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
-    ) { paddingValues ->
+    } else {
+        // === PORTRAIT (VERTICALE - CLASSICO) ===
+        // Questo rimane invariato
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFFAFAFA))
+        ) {
+            CommonHeader()
 
-        if (isLandscape) {
-            Row(modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(16.dp), contentAlignment = Alignment.Center) {
-                    PolaroidView(photoUri, editState, onStateChange = { editState = it })
-                }
+            Spacer(modifier = Modifier.weight(1f))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                PolaroidEditorView(photoUri, editState) { editState = it }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                shadowElevation = 16.dp,
+                color = Color.White
+            ) {
                 Column(
-                    modifier = Modifier.width(320.dp).fillMaxHeight().background(Color.White).border(1.dp, Color(0xFFEEEEEE)).padding(16.dp)
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { showExitDialog = true }) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        AnimatedVisibility(visible = activeTool != EditorTool.NONE) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF5F5F5))
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                ActiveToolOptions(activeTool, editState, photoUri) { editState = it }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            EditorToolButton(Icons.Default.AutoAwesome, "Filters", activeTool == EditorTool.FILTER) { activeTool = if (activeTool == EditorTool.FILTER) EditorTool.NONE else EditorTool.FILTER }
+                            EditorToolButton(Icons.Default.TextFields, "Text", activeTool == EditorTool.TEXT) { activeTool = if (activeTool == EditorTool.TEXT) EditorTool.NONE else EditorTool.TEXT }
+                            EditorToolButton(Icons.Default.EmojiEmotions, "Stickers", activeTool == EditorTool.EMOJI) { activeTool = if (activeTool == EditorTool.EMOJI) EditorTool.NONE else EditorTool.EMOJI }
+                            EditorToolButton(Icons.Default.CropRotate, "Transform", activeTool == EditorTool.TRANSFORM) { activeTool = if (activeTool == EditorTool.TRANSFORM) EditorTool.NONE else EditorTool.TRANSFORM }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedIconButton(
+                            onClick = { showExitDialog = true },
+                            shape = CircleShape,
+                            border = BorderStroke(1.dp, Color.LightGray),
+                            modifier = Modifier.size(56.dp)
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        Text("Magic Mode", fontWeight = FontWeight.Bold)
+
+                        Button(
+                            onClick = { onSaveMoves(editState) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A), contentColor = Color.White),
+                            modifier = Modifier.weight(1f).height(56.dp)
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save Magic", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        ActiveToolPanel(activeTool, editState, onStateChange = { editState = it }, context = context)
-                    }
-                    Divider()
-                    BottomToolbarLandscape(
-                        activeTool = activeTool,
-                        onToolSelected = { activeTool = if (activeTool == it) EditorTool.NONE else it },
-                        onSave = { onSaveMoves(editState) }
-                    )
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    PolaroidView(photoUri, editState, onStateChange = { editState = it })
                 }
             }
         }
     }
 }
 
-// --- POLAROID INTERATTIVA ---
+// --- POLAROID EDITOR (Standard) ---
 @Composable
-fun PolaroidView(
+fun PolaroidEditorView(
     photoUri: Uri,
     editState: PhotoEditState,
     onStateChange: (PhotoEditState) -> Unit
@@ -153,48 +326,71 @@ fun PolaroidView(
     val context = LocalContext.current
     val currentMatrix = FilterUtils.filters.find { it.name == editState.filterName }?.colorMatrix
 
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        shape = RoundedCornerShape(2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+    Surface(
+        color = Color.White,
         modifier = Modifier
-            .fillMaxHeight(0.85f)
-            .aspectRatio(0.80f)
-            .border(1.dp, Color(0xFFE0E0E0))
+            .rotate(-2f)
+            .shadow(10.dp, RoundedCornerShape(2.dp)),
+        shape = RoundedCornerShape(2.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .clip(RoundedCornerShape(2.dp))
-                    .clipToBounds()
+        Box {
+            Column(
+                modifier = Modifier.padding(12.dp).zIndex(0f)
             ) {
-                Image(
-                    painter = rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).build()),
-                    contentDescription = "Editing Photo",
-                    contentScale = ContentScale.Crop,
-                    colorFilter = if (currentMatrix != null) ColorFilter.colorMatrix(currentMatrix) else null,
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            rotationZ = editState.rotation
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .background(Color(0xFFEEEEEE))
+                        .clip(RectangleShape)
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).build()),
+                        contentDescription = "Editing Photo",
+                        contentScale = ContentScale.Crop,
+                        colorFilter = if (currentMatrix != null) ColorFilter.colorMatrix(currentMatrix) else null,
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
                             scaleX = editState.scaleX * editState.zoom
                             scaleY = editState.scaleY * editState.zoom
+                            rotationZ = editState.rotation
+                            translationX = editState.panX
+                            translationY = editState.panY
                         }
-                )
+                    )
+                }
 
-                editState.stickers.forEach { sticker ->
-                    MovableSticker(
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicTextField(
+                        value = editState.caption,
+                        onValueChange = { if (it.length <= 30) onStateChange(editState.copy(caption = it)) },
+                        textStyle = TextStyle(color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontFamily = FontFamily.Cursive),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.Center) {
+                                if (editState.caption.isEmpty()) {
+                                    Text("Tap to write...", style = TextStyle(color = Color.LightGray, fontSize = 24.sp, textAlign = TextAlign.Center, fontFamily = FontFamily.Cursive))
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                }
+            }
+
+            editState.stickers.forEach { sticker ->
+                key(sticker.id) {
+                    MovableStickerItem(
                         sticker = sticker,
                         onUpdate = { updatedSticker ->
                             val newList = editState.stickers.toMutableList()
                             val index = newList.indexOfFirst { it.id == sticker.id }
-                            if (index != -1) {
-                                newList[index] = updatedSticker
-                                onStateChange(editState.copy(stickers = newList))
-                            }
+                            if (index != -1) { newList[index] = updatedSticker; onStateChange(editState.copy(stickers = newList)) }
                         },
                         onDelete = {
                             val newList = editState.stickers.toMutableList()
@@ -204,178 +400,124 @@ fun PolaroidView(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(50.dp), contentAlignment = Alignment.Center) {
-                if (editState.caption.isEmpty()) {
-                    Text("Tap to add text...", color = Color.LightGray, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-                }
-                BasicTextField(
-                    value = editState.caption,
-                    onValueChange = { if (it.length <= 20) onStateChange(editState.copy(caption = it)) },
-                    textStyle = TextStyle(
-                        color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center, fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Text(text = "${editState.caption.length}/20", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.align(Alignment.End))
         }
     }
 }
 
-// STICKER CON FIX POSIZIONAMENTO
+// --- LOGICA STICKER ---
 @Composable
-fun MovableSticker(sticker: StickerLayer, onUpdate: (StickerLayer) -> Unit, onDelete: () -> Unit) {
-    val currentSticker by rememberUpdatedState(sticker)
+fun MovableStickerItem(sticker: StickerLayer, onUpdate: (StickerLayer) -> Unit, onDelete: () -> Unit) {
+    val currentOnUpdate by rememberUpdatedState(onUpdate)
+    var offset by remember(sticker.id) { mutableStateOf(IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt())) }
+    var scale by remember(sticker.id) { mutableFloatStateOf(sticker.scale) }
+
+    LaunchedEffect(sticker) {
+        offset = IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt())
+        scale = sticker.scale
+    }
 
     Box(
         modifier = Modifier
-            .offset { IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt()) }
-            .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { onDelete() })
-            }
-            .pointerInput(Unit) {
+            .offset { offset }
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .pointerInput(sticker.id) {
                 detectTransformGestures { _, pan, zoom, _ ->
-                    val s = currentSticker
-                    onUpdate(s.copy(
-                        offsetX = s.offsetX + pan.x,
-                        offsetY = s.offsetY + pan.y,
-                        scale = (s.scale * zoom).coerceIn(0.5f, 3f)
-                    ))
+                    val newScale = (scale * zoom).coerceIn(0.5f, 5f)
+                    val newX = offset.x + pan.x
+                    val newY = offset.y + pan.y
+                    scale = newScale
+                    offset = IntOffset(newX.roundToInt(), newY.roundToInt())
+                    currentOnUpdate(sticker.copy(offsetX = newX, offsetY = newY, scale = newScale))
                 }
             }
-            .graphicsLayer(scaleX = sticker.scale, scaleY = sticker.scale)
-    ) {
-        Text(text = sticker.emoji, fontSize = 40.sp)
+            .pointerInput(sticker.id) { detectTapGestures(onDoubleTap = { onDelete() }) }
+    ) { Text(text = sticker.emoji, fontSize = 50.sp) }
+}
+
+// --- OPZIONI STRUMENTI (COMPATTE) ---
+@Composable
+fun ActiveToolOptions(activeTool: EditorTool, editState: PhotoEditState, photoUri: Uri, onStateChange: (PhotoEditState) -> Unit) {
+    when (activeTool) {
+        EditorTool.FILTER -> {
+            LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(FilterUtils.filters) { filter ->
+                    FilterThumbnailItem(filter, photoUri, filter.name == editState.filterName) { onStateChange(editState.copy(filterName = filter.name)) }
+                }
+            }
+        }
+        EditorTool.EMOJI -> {
+            val emojis = listOf("😎", "😍", "🎉", "🔥", "❤️", "⭐", "🍕", "🚀", "🐶", "🐱", "🌈", "🇮🇹")
+            LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                items(emojis) { emoji ->
+                    Text(emoji, fontSize = 32.sp, modifier = Modifier.clickable {
+                        if (editState.stickers.size < 5) {
+                            val newList = editState.stickers.toMutableList()
+                            newList.add(StickerLayer(emoji = emoji))
+                            onStateChange(editState.copy(stickers = newList))
+                        }
+                    })
+                }
+            }
+        }
+        EditorTool.TRANSFORM -> {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                CompactSliderRow("Zoom", editState.zoom, 1f..4f) { onStateChange(editState.copy(zoom = it)) }
+                CompactSliderRow("X", editState.panX, -500f..500f) { onStateChange(editState.copy(panX = it)) }
+                CompactSliderRow("Y", editState.panY, -500f..500f) { onStateChange(editState.copy(panY = it)) }
+                Spacer(Modifier.height(4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TransformActionButton(Icons.AutoMirrored.Filled.RotateLeft, "-90") { onStateChange(editState.copy(rotation = editState.rotation - 90f)) }
+                    TransformActionButton(Icons.AutoMirrored.Filled.RotateRight, "+90") { onStateChange(editState.copy(rotation = editState.rotation + 90f)) }
+                    TransformActionButton(Icons.Default.SwapHoriz, "Flip") { onStateChange(editState.copy(scaleX = editState.scaleX * -1f)) }
+                }
+            }
+        }
+        EditorTool.TEXT -> {
+            Text("Tap photo to write", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 14.sp, color = Color.Gray)
+        }
+        else -> {}
     }
 }
 
-// (Le funzioni ActiveToolPanel, BottomToolbar, MagicModeHeader, EditorToolButton rimangono uguali a prima)
-// Assicurati di includerle qui sotto per completezza se copi/incolli l'intero file.
-// Per brevità, se le hai già nel progetto, usa quelle. Altrimenti dimmelo e le rimetto.
-// --- INCLUDERE IL RESTO DELLE FUNZIONI UI QUI ---
+// --- HELPER COMPONENTS ---
 @Composable
-fun ActiveToolPanel(activeTool: EditorTool, editState: PhotoEditState, onStateChange: (PhotoEditState) -> Unit, context: android.content.Context) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        when (activeTool) {
-            EditorTool.FILTER -> {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(8.dp)) {
-                    items(FilterUtils.filters) { filter ->
-                        FilterChip(selected = filter.name == editState.filterName, onClick = { onStateChange(editState.copy(filterName = filter.name)) }, label = { Text(filter.name) })
-                    }
-                }
-            }
-            EditorTool.TRANSFORM -> {
-                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceAround) {
-                    IconButton(onClick = { onStateChange(editState.copy(rotation = editState.rotation - 90f)) }) { Icon(Icons.Default.RotateLeft, "Rotate") }
-                    IconButton(onClick = { onStateChange(editState.copy(scaleX = editState.scaleX * -1f)) }) { Icon(Icons.Default.Flip, "Flip") }
-                }
-                Slider(value = editState.zoom, onValueChange = { onStateChange(editState.copy(zoom = it)) }, valueRange = 1f..3f, modifier = Modifier.padding(horizontal = 16.dp))
-            }
-            EditorTool.EMOJI -> {
-                val emojis = listOf("😎", "😍", "🎉", "🔥", "❤️", "⭐", "🍕", "🚀", "🐶", "🐱", "🌈", "🇮🇹")
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
-                    items(emojis) { emoji ->
-                        Text(text = emoji, fontSize = 32.sp, modifier = Modifier.clickable {
-                            if (editState.stickers.size < 3) {
-                                val newList = editState.stickers.toMutableList().apply { add(StickerLayer(emoji = emoji)) }
-                                onStateChange(editState.copy(stickers = newList))
-                            }
-                        })
-                    }
-                }
-            }
-            EditorTool.TEXT -> Text("Tap photo border to type.", modifier = Modifier.padding(16.dp), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-            else -> {}
-        }
-    }
-}
-
-@Composable
-fun BottomToolbar(
-    activeTool: EditorTool,
-    onToolSelected: (EditorTool) -> Unit,
-    onSave: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White) // Sfondo Bianco
-        // .shadow(8.dp) <-- RIMOSSO: Questo causava l'alone grigio
-    ) {
-        // Pannello strumenti (Filtri, Slider, etc.)
-        if (activeTool != EditorTool.NONE) {
-            // Anche qui cambiamo lo sfondo da F9F9F9 a White per uniformità
-            Box(modifier = Modifier.background(Color.White)) {
-                content()
-            }
-            // Mettiamo un divisore sottilissimo se vuoi separazione, o rimuovilo per total white
-            Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
-        }
-
-        // Riga Icone
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EditorToolButton(Icons.Default.FormatColorFill, "Filter", activeTool == EditorTool.FILTER) { onToolSelected(EditorTool.FILTER) }
-            EditorToolButton(Icons.Default.CropRotate, "Edit", activeTool == EditorTool.TRANSFORM) { onToolSelected(EditorTool.TRANSFORM) }
-            EditorToolButton(Icons.Default.EmojiEmotions, "Sticker", activeTool == EditorTool.EMOJI) { onToolSelected(EditorTool.EMOJI) }
-            EditorToolButton(Icons.Default.TextFields, "Text", activeTool == EditorTool.TEXT) { onToolSelected(EditorTool.TEXT) }
-        }
-
-        // Bottone Done
-        Button(
-            onClick = onSave,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp) // Padding aggiustato
-                .height(50.dp)
-        ) {
-            Text("Done", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-
-        // Spazio finale per staccare dal bordo inferiore dello schermo (safe area)
-        Spacer(modifier = Modifier.height(16.dp))
+fun CompactSliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onValueChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(32.dp)) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
+        Slider(value, onValueChange, valueRange = range, colors = SliderDefaults.colors(thumbColor = Color.Black, activeTrackColor = Color.Black, inactiveTrackColor = Color.LightGray), modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-fun BottomToolbarLandscape(activeTool: EditorTool, onToolSelected: (EditorTool) -> Unit, onSave: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            EditorToolButton(Icons.Default.FormatColorFill, "Filter", activeTool == EditorTool.FILTER) { onToolSelected(EditorTool.FILTER) }
-            EditorToolButton(Icons.Default.EmojiEmotions, "Sticker", activeTool == EditorTool.EMOJI) { onToolSelected(EditorTool.EMOJI) }
+fun FilterThumbnailItem(filterItem: FilterItem, photoUri: Uri, isSelected: Boolean, onClick: () -> Unit) {
+    val context = LocalContext.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(70.dp).clickable { onClick() }) {
+        Box(Modifier.size(70.dp).clip(RoundedCornerShape(8.dp)).border(if (isSelected) 3.dp else 0.dp, if (isSelected) Color.Black else Color.Transparent, RoundedCornerShape(8.dp))) {
+            Image(rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).size(200).crossfade(true).build()), filterItem.name, contentScale = ContentScale.Crop, colorFilter = if (filterItem.colorMatrix != null) ColorFilter.colorMatrix(filterItem.colorMatrix) else null, modifier = Modifier.fillMaxSize())
+            if (isSelected) Box(Modifier.fillMaxSize().background(Color.Black.copy(0.3f)), Alignment.Center) { Icon(Icons.Default.Check, null, tint = Color.White) }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onSave, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A)), modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Done") }
-    }
-}
-
-@Composable
-fun MagicModeHeader(onBackClick: () -> Unit) {
-    Column {
-        CommonHeader()
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text("Magic mode", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        }
-        Divider()
+        Spacer(Modifier.height(4.dp))
+        Text(filterItem.name, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 fun EditorToolButton(icon: ImageVector, label: String, isActive: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.size(45.dp).clip(RoundedCornerShape(12.dp)).background(if (isActive) Color(0xFFFFF176) else Color.Transparent).border(if (isActive) 2.dp else 1.dp, if (isActive) Color(0xFFFBC02D) else Color.LightGray, RoundedCornerShape(12.dp)).clickable { onClick() }, contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label, tint = Color.Black) }
-        Text(label, fontSize = 10.sp, color = Color.Black)
+        Surface(shape = RoundedCornerShape(16.dp), color = if (isActive) Color.Black else Color.White, border = if (isActive) null else BorderStroke(1.dp, Color.LightGray), modifier = Modifier.size(60.dp).clickable { onClick() }) {
+            Box(contentAlignment = Alignment.Center) { Icon(icon, label, tint = if (isActive) Color.White else Color.Black, modifier = Modifier.size(28.dp)) }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(label, fontSize = 12.sp, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+@Composable
+fun TransformActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onClick() }.padding(4.dp)) {
+        Surface(shape = CircleShape, color = Color(0xFFEEEEEE), modifier = Modifier.size(40.dp)) {
+            Box(contentAlignment = Alignment.Center) { Icon(icon, label, tint = Color.Black, modifier = Modifier.size(20.dp)) }
+        }
+        Text(label, fontSize = 10.sp, color = Color.Gray)
     }
 }

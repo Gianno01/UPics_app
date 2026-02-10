@@ -3,6 +3,7 @@ package com.example.upics
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,6 +33,7 @@ import coil.request.ImageRequest
 fun CommonHeader() {
     val context = LocalContext.current
 
+    // Configurazione Loader per supportare GIF e SVG (se hai il logo animato)
     val imageLoader = ImageLoader.Builder(context)
         .components {
             if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
@@ -38,8 +41,14 @@ fun CommonHeader() {
         }
         .build()
 
+    // NOTA: Se 'R.raw.logo' ti dà errore rosso, significa che non hai il file del logo.
+    // In quel caso, cambia la riga sotto con un'icona standard o aggiungi il file.
     val logoPainter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context).data(R.raw.logo).build(),
+        // Se R.raw.logo non esiste, usa una risorsa di default per evitare crash
+        model = ImageRequest.Builder(context)
+            .data(R.raw.logo) // Assicurati di avere logo in res/raw, altrimenti commenta e usa un'icona
+            .error(android.R.drawable.ic_menu_camera) // Fallback se manca il logo
+            .build(),
         imageLoader = imageLoader
     )
 
@@ -50,12 +59,14 @@ fun CommonHeader() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Logo
         Image(
             painter = logoPainter,
             contentDescription = "Logo Upics",
             modifier = Modifier.size(60.dp)
         )
 
+        // Stato Connessione
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -67,18 +78,20 @@ fun CommonHeader() {
             Text(
                 text = "Connected - Turin(IT)",
                 color = Color.Black,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
             )
         }
     }
 }
 
-// --- MENU FILTRI CONDIVISO (Spostato qui per essere visibile ovunque) ---
+// --- MENU FILTRI CONDIVISO ---
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterSelectionMenu(
     currentFilterName: String,
-    onFilterSelected: (PhotoFilter) -> Unit,
+    onFilterSelected: (FilterItem) -> Unit, // <--- CORRETTO: Era PhotoFilter, ora è FilterItem
     onClose: () -> Unit
 ) {
     Column(
@@ -103,9 +116,9 @@ fun FilterSelectionMenu(
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Assicurati che FilterUtils esista nel progetto!
             items(FilterUtils.filters) { filter ->
                 val isSelected = filter.name == currentFilterName
+
                 FilterChip(
                     selected = isSelected,
                     onClick = { onFilterSelected(filter) },
