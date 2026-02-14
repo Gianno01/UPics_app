@@ -2,7 +2,12 @@ package com.example.upics
 
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.net.Uri
+import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -28,10 +33,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -74,7 +79,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.google.firebase.Firebase
+import com.google.firebase.database.database
 import kotlinx.coroutines.delay
+import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 
 @Composable
@@ -124,11 +132,15 @@ fun ResumeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFAFAFA))) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFFFAFAFA))) {
         if (isLandscape) {
             Row(modifier = Modifier.fillMaxSize()) {
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
                     contentAlignment = Alignment.Center
                 ) {
                     HeroPolaroidCapturable(
@@ -152,12 +164,15 @@ fun ResumeScreen(
                 }
 
                 Surface(
-                    modifier = Modifier.width(420.dp).fillMaxHeight(),
+                    modifier = Modifier
+                        .width(420.dp)
+                        .fillMaxHeight(),
                     color = Color.White,
                     shadowElevation = 16.dp
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
                             .padding(24.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
@@ -211,7 +226,9 @@ fun ResumeScreen(
                 }
 
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     QuantitySelector(quantity) { quantity = it }
@@ -296,7 +313,9 @@ fun ResumeContent(
         onClick = onPay,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
-        modifier = Modifier.fillMaxWidth().height(56.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
     ) {
         Icon(Icons.Default.CreditCard, null, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
@@ -337,7 +356,9 @@ fun PrintButtons(
                 containerColor = Color(0xFF8BC34A),
                 contentColor = Color.White
             ),
-            modifier = Modifier.weight(1f).height(56.dp)
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp)
         ) {
             Icon(Icons.Default.Print, null, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(10.dp))
@@ -379,12 +400,37 @@ fun HeroPolaroidCapturable(
 
     LaunchedEffect(exportRequest) {
         if (exportRequest) {
-            val bmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
-            onExported(bmp)
+            val hardwareBmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
+            onExported(hardwareBmp)
+
+            val softwareBmp = hardwareBmp.copy(Bitmap.Config.ARGB_8888, true)
+
+            val grayscaleBmp = softwareBmp.toGrayscale()
+
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            grayscaleBmp.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
+            val byteArray = byteArrayOutputStream.toByteArray()
+
+            val encoded: String? = Base64.encodeToString(byteArray, Base64.DEFAULT)
+
+            //Firebase.database.getReference("VendingMachines/VM001/image/data").setValue(encoded)
+            //Firebase.database.getReference("VendingMachines/VM001/image/height").setValue(softwareBmp.height)
         }
     }
 }
-
+private fun Bitmap.toGrayscale(): Bitmap {
+    // Crea un nuovo bitmap mutabile per disegnarci sopra
+    val grayscaleBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(grayscaleBitmap)
+    val paint = Paint()
+    val colorMatrix = ColorMatrix().apply {
+        setSaturation(0f) // Imposta la saturazione a 0 per la scala di grigi
+    }
+    paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+    // Disegna il bitmap originale sul nuovo canvas con il filtro applicato
+    canvas.drawBitmap(this, 0f, 0f, paint)
+    return grayscaleBitmap
+}
 @Composable
 fun QuantitySelector(
     quantity: Int,

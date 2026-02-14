@@ -191,7 +191,8 @@ fun AuthScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = { navController.navigate("home") },
+                onClick = {
+                    navController.navigate("home")},
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF8BC34A),
