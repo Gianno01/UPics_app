@@ -1,5 +1,6 @@
 package com.example.upics
 
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -33,6 +35,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.firebase.Firebase
+import com.google.firebase.database.database
 
 @Composable
 fun AuthScreen(navController: NavController) {
@@ -44,6 +48,7 @@ fun AuthScreen(navController: NavController) {
     var isPasswordVisible by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -107,10 +112,16 @@ fun AuthScreen(navController: NavController) {
                     onValueChange = { name = it },
                     label = { Text("Full Name") },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                    keyboardActions = KeyboardActions(onNext = {
+                        focusManager.moveFocus(
+                            FocusDirection.Down
+                        )
+                    }),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Black,
                         unfocusedBorderColor = Color.LightGray,
@@ -127,7 +138,10 @@ fun AuthScreen(navController: NavController) {
                 label = { Text("Email") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
                 keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -154,7 +168,10 @@ fun AuthScreen(navController: NavController) {
                 },
                 visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -164,7 +181,6 @@ fun AuthScreen(navController: NavController) {
                     cursorColor = Color.Black
                 )
             )
-
             // Password Dimenticata
             AnimatedVisibility(visible = isLoginMode) {
                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -192,7 +208,70 @@ fun AuthScreen(navController: NavController) {
         ) {
             Button(
                 onClick = {
-                    navController.navigate("home")},
+                    // Validazione preliminare degli input
+                    if (email.isBlank() || password.isBlank() || !email.contains("@")) {
+                        Toast.makeText(context, "Email o password non validi.", Toast.LENGTH_SHORT).show()
+                        return@Button // Esce dal blocco onClick
+                    }
+                    // Estrazione sicura di username e dominio
+                    val username = email.substringBefore("@")
+                    val domain = "@" + email.substringAfter("@")
+
+                    if(isLoginMode) {
+                        // Accesso al database con una struttura più piatta
+                        val userRef = Firebase.database.getReference("Users/$username")
+                        userRef.get().addOnCompleteListener { task ->
+                            if (!task.isSuccessful || !task.result.exists()) {
+                                // L'utente non esiste o c'è stato un errore di rete
+                                val message =
+                                    if (!task.result.exists()) "Utente non registrato" else "Errore nel contattare il database"
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                return@addOnCompleteListener
+                            }
+                            val dbDomain = task.result.child("Domain").getValue(String::class.java)
+                            val dbPassword = task.result.child("Password").getValue(String::class.java)
+                            val dbName = task.result.child("Name").getValue(String::class.java)
+                            if (dbDomain != domain) {
+                                Toast.makeText(context, "Dominio Errato", Toast.LENGTH_SHORT).show()
+                            } else if (dbPassword != password) {
+                                Toast.makeText(context, "Password Errata", Toast.LENGTH_SHORT)
+                                    .show()
+                            } else {
+                                // Login successo!
+                                Toast.makeText(
+                                    context,
+                                    "Login Effettuato, benvenuto $dbName",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                navController.navigate("home")
+                            }
+                        }
+                    }else{
+                        val usersRef = Firebase.database.getReference("Users")
+                        val userRef = usersRef.child(username)
+                        userRef.get().addOnCompleteListener { task ->
+                            if (!task.isSuccessful || !task.result.exists()) {
+                                if(domain==""||name==""||password=="") {
+                                    Toast.makeText(context, "Compila tutti i campi", Toast.LENGTH_SHORT).show()
+                                    return@addOnCompleteListener
+                                }
+                                usersRef.child(username).child("Name").setValue(name)
+                                usersRef.child(username).child("Domain").setValue(domain)
+                                usersRef.child(username).child("Password").setValue(password)
+                                Toast.makeText(context, "Utente registrato con successo", Toast.LENGTH_SHORT).show()
+                                email=""
+                                password =""
+                                name=""
+                                isLoginMode = true
+
+                            }
+                            else{
+                                Toast.makeText(context, "Utente già registrato", Toast.LENGTH_SHORT).show()
+                                return@addOnCompleteListener
+                            }
+                        }
+                    }
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF8BC34A),
@@ -217,7 +296,12 @@ fun AuthScreen(navController: NavController) {
             ) {
                 // Sostituito Divider con HorizontalDivider per evitare errori
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                Text(" OR ", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                Text(
+                    " OR ",
+                    color = Color.Gray,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
             }
 
