@@ -5,17 +5,19 @@ import android.os.Build.VERSION.SDK_INT
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -36,10 +38,10 @@ import coil.request.ImageRequest
 fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit = {}) {
     val context = LocalContext.current
 
-    // LEGGIAMO LO STATO GLOBALE: L'utente ha pagato?
-    val hasCredit = TransferState.hasCredit
+    // I NUOVI CONTATORI
+    val creditCount = TransferState.credits
+    val hasCredit = creditCount > 0
 
-    // Loader Immagini (come prima)
     val imageLoader = ImageLoader.Builder(context)
         .components {
             if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
@@ -58,7 +60,7 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. SFONDO
+        // 1. Sfondo
         Image(
             painter = backgroundPainter,
             contentDescription = null,
@@ -68,16 +70,8 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
 
         Column(modifier = Modifier.fillMaxSize()) {
             CommonHeader()
-
             Spacer(modifier = Modifier.height(20.dp))
-
-            // 2. LOGO CENTRALE
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Image(
                     painter = scrittaPainter,
                     contentDescription = "Scritta Home",
@@ -87,97 +81,127 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
             }
         }
 
-        // 3. SEZIONE CREDITI ATTIVI (Nuova!)
-        // Se l'utente ha pagato, appare questo bottone flottante sopra il menu
+        // 2. Bottone "Stampa Ora" (Se hai crediti)
         if (hasCredit) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 220.dp) // Posizionato sopra il menu bianco
-            ) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 250.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        // 1. CONSUMA IL CREDITO
-                        TransferState.hasCredit = false
-
-                        // 2. VAI ALLA STAMPA (Usiamo un placeholder per la demo)
+                        TransferState.credits -= 1
                         val dummyUri = Uri.encode("android.resource://com.example.upics/drawable/sample")
                         navController?.navigate("audio_connect/$dummyUri")
                     },
-                    containerColor = Color(0xFF8BC34A), // Verde Upics
+                    containerColor = Color(0xFF8BC34A),
                     contentColor = Color.White,
-                    icon = { Icon(Icons.Default.Print, "Print Now") },
-                    text = { Text("CREDIT AVAILABLE: PRINT NOW") }
+                    icon = { Icon(Icons.Default.Print, "Print Now", modifier = Modifier.size(24.dp)) },
+                    text = { Text("PRINT NOW ($creditCount)", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
                 )
             }
         }
 
-        // 4. MENU INFERIORE
+        // 3. MENU INFERIORE (Stile Polaroid Moderno)
         Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            color = Color.White
+            color = Color(0xFFF5F5F5), // Sfondo grigio chiaro per far risaltare le carte bianche
+            shadowElevation = 24.dp
         ) {
             Column(
-                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                modifier = Modifier
+                    .padding(top = 32.dp, start = 20.dp, end = 20.dp, bottom = 24.dp)
+                    .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Riga pulsanti Azione
+                // Riga con le 2 Azioni Principali (Cards stile Polaroid)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    ActionButton(Icons.Default.Upload, "Upload\nphotos") { onOpenGallery() }
-                    ActionButton(Icons.Default.PhotoCamera, "Take\nphotos") { Toast.makeText(context, "Usa Upload", Toast.LENGTH_SHORT).show() }
+                    // Card Upload
+                    MainActionCard(
+                        icon = Icons.Default.Image,
+                        title = "New Magic",
+                        subtitle = "Upload a photo",
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenGallery
+                    )
 
-                    // Il pulsante History punta alla nuova schermata
-                    ActionButton(Icons.Default.DateRange, "History\n${if(hasCredit) "(1)" else ""}") {
-                        navController?.navigate("history")
-                    }
+                    // Card History
+                    MainActionCard(
+                        icon = Icons.Default.History,
+                        title = "Gallery",
+                        subtitle = if (hasCredit) "$creditCount Credits Available" else "View past prints",
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController?.navigate("history") }
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                MenuButton("Need Help?", Color(0xFFE0E0E0), Color.Black)
-                Spacer(modifier = Modifier.height(12.dp))
-                MenuButton("About Us", Color(0xFFE0E0E0), Color.Black)
-                Spacer(modifier = Modifier.height(12.dp))
-                MenuButton("Terms and Condictions", Color.Black, Color.White)
+                // Footer Minimalista
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextLink("Help") { navController?.navigate("help") }
+                    Text("  •  ", color = Color.LightGray)
+                    TextLink("About Us") { navController?.navigate("about") }
+                    Text("  •  ", color = Color.LightGray)
+                    TextLink("Terms") { navController?.navigate("terms") }                }
             }
         }
     }
 }
 
-// --- COMPONENTI LOCALI ---
+// --- NUOVI COMPONENTI LOCALI CON STILE "POLAROID VIBE" ---
+
 @Composable
-fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {
-    OutlinedButton(
+fun MainActionCard(icon: ImageVector, title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
         onClick = onClick,
-        modifier = Modifier.size(100.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black),
-        border = BorderStroke(2.dp, Color.Black)
+        modifier = modifier.height(160.dp), // Più alte per dare respiro
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White, // BIANCO PURO per massimo contrasto (effetto carta foto)
+        shadowElevation = 12.dp, // Ombra profonda per effetto "oggetto fisico"
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE)) // Bordino sottile
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(32.dp))
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // L'icona in alto (la "zona foto")
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.Black, // Contrasto massimo su bianco
+                modifier = Modifier.size(56.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = title, tint = Color.White, modifier = Modifier.size(28.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Il testo in basso (la "zona scritta a mano")
+            // Testo molto più grande e leggibile
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
         }
     }
 }
 
 @Composable
-fun MenuButton(text: String, color: Color, textColor: Color) {
-    val context = LocalContext.current
-    Button(
-        onClick = { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() },
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = textColor),
-        border = if (color == Color.Black) null else BorderStroke(1.dp, Color.Gray)
-    ) {
-        Text(text, fontSize = 16.sp)
-    }
+fun TextLink(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.Gray,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() }
+            .padding(8.dp)
+    )
 }

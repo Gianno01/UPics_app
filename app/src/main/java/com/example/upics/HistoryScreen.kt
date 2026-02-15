@@ -1,8 +1,10 @@
 package com.example.upics
 
+import android.content.res.Configuration
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke // <--- AGGIUNTO: Risolve l'errore rosso
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
@@ -24,8 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -36,23 +41,16 @@ import kotlinx.coroutines.delay
 @Composable
 fun HistoryScreen(navController: NavController) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // Leggiamo lo stato globale dei crediti
-    var hasCredit by remember { mutableStateOf(TransferState.hasCredit) }
+    // Permette di usare il tasto indietro fisico del telefono
+    BackHandler { navController.popBackStack() }
 
-    // Mock Data: Simuliamo 6 foto nella cronologia
-    val historyPhotos = remember {
-        listOf(
-            "https://picsum.photos/300/300?random=1",
-            "https://picsum.photos/300/300?random=2",
-            "https://picsum.photos/300/300?random=3",
-            "https://picsum.photos/300/300?random=4",
-            "https://picsum.photos/300/300?random=5",
-            "https://picsum.photos/300/300?random=6"
-        )
-    }
+    // Leggiamo il numero di crediti e le foto salvate
+    var creditCount by remember { mutableIntStateOf(TransferState.credits) }
+    val historyPhotos = TransferState.savedPhotos
 
-    // Selezioniamo la prima foto di default
     var selectedPhotoUri by remember { mutableStateOf(historyPhotos.firstOrNull()) }
     var showBuyDialog by remember { mutableStateOf(false) }
 
@@ -69,10 +67,10 @@ fun HistoryScreen(navController: NavController) {
         // Simulazione transazione
         LaunchedEffect(Unit) {
             delay(2000)
-            TransferState.hasCredit = true
-            hasCredit = true // Aggiorna la UI locale
+            TransferState.credits += 1
+            creditCount = TransferState.credits // Aggiorna la UI locale
             showBuyDialog = false
-            Toast.makeText(context, "Credit Added! You can now print.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Credit Added! You have $creditCount credits.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -81,7 +79,6 @@ fun HistoryScreen(navController: NavController) {
             .fillMaxSize()
             .background(Color(0xFFFAFAFA))
     ) {
-        // 1. Header Comune
         CommonHeader()
 
         Column(
@@ -91,7 +88,7 @@ fun HistoryScreen(navController: NavController) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Titolo e Stato Crediti
+            // Titolo (Tornato pulito) e Stato Crediti
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,33 +96,33 @@ fun HistoryScreen(navController: NavController) {
             ) {
                 Text(
                     text = "Your Gallery",
-                    fontSize = 28.sp,
+                    fontSize = if (isLandscape) 24.sp else 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
 
-                // Badge Crediti
+                // Badge Crediti Dinamico
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (hasCredit) Color(0xFFE8F5E9) else Color(0xFFEEEEEE),
-                    border = if (hasCredit) BorderStroke(1.dp, Color(0xFF8BC34A)) else null
+                    color = if (creditCount > 0) Color(0xFFE8F5E9) else Color(0xFFEEEEEE),
+                    border = if (creditCount > 0) BorderStroke(1.dp, Color(0xFF8BC34A)) else null
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = if (hasCredit) Icons.Default.CheckCircle else Icons.Default.History,
+                            imageVector = if (creditCount > 0) Icons.Default.CheckCircle else Icons.Default.History,
                             contentDescription = null,
-                            tint = if (hasCredit) Color(0xFF8BC34A) else Color.Gray,
+                            tint = if (creditCount > 0) Color(0xFF8BC34A) else Color.Gray,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (hasCredit) "1 Credit Active" else "No Credits",
+                            text = if (creditCount > 0) "$creditCount Credits" else "No Credits",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (hasCredit) Color(0xFF2E7D32) else Color.Gray
+                            color = if (creditCount > 0) Color(0xFF2E7D32) else Color.Gray
                         )
                     }
                 }
@@ -140,15 +137,33 @@ fun HistoryScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 3. Griglia Foto
+            // Griglia Foto Reale
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Fixed(if (isLandscape) 4 else 2),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                items(historyPhotos) { uri ->
-                    val isSelected = (selectedPhotoUri == uri)
+                item {
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFEEEEEE))
+                            .clickable { navController.popBackStack() }, // Premere su NEW ti riporta alla Home
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Add, null, tint = Color.Gray, modifier = Modifier.size(32.dp))
+                            Spacer(Modifier.height(4.dp))
+                            Text("New", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        }
+                    }
+                }
+
+                items(historyPhotos) { uriString ->
+                    val isSelected = (selectedPhotoUri == uriString)
 
                     Box(
                         modifier = Modifier
@@ -159,11 +174,11 @@ fun HistoryScreen(navController: NavController) {
                                 color = if (isSelected) Color.Black else Color.Transparent,
                                 shape = RoundedCornerShape(16.dp)
                             )
-                            .clickable { selectedPhotoUri = uri }
+                            .clickable { selectedPhotoUri = uriString }
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data(uri)
+                                .data(Uri.parse(uriString))
                                 .crossfade(true)
                                 .build(),
                             contentDescription = "History Photo",
@@ -171,16 +186,10 @@ fun HistoryScreen(navController: NavController) {
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Overlay scuro se non selezionato
                         if (!isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.White.copy(alpha = 0.3f))
-                            )
+                            Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.3f)))
                         }
 
-                        // Icona di selezione
                         if (isSelected) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
@@ -194,86 +203,88 @@ fun HistoryScreen(navController: NavController) {
                         }
                     }
                 }
-
-                // Card "Aggiungi" finta
-                item {
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFEEEEEE))
-                            .clickable { Toast.makeText(context, "Upload new", Toast.LENGTH_SHORT).show() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Add, null, tint = Color.Gray, modifier = Modifier.size(40.dp))
-                    }
-                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. ACTION BAR DINAMICA
+            // ACTION BAR: Tasto Indietro + Tasti Azione coerenti col resto dell'app
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = if (isLandscape) 16.dp else 32.dp),
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
                 shadowElevation = 8.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (hasCredit) {
-                        // --- CASO A: HAI I CREDITI -> STAMPA ---
+
+                    // 1. TASTO INDIETRO (IDENTICO A RESUMESCREEN)
+                    OutlinedIconButton(
+                        onClick = { navController.popBackStack() },
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color.LightGray),
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.Black)
+                    }
+
+                    // 2. TASTI AZIONE
+                    if (creditCount > 0) {
+                        val canPrint = selectedPhotoUri != null
+
+                        Button(
+                            onClick = { showBuyDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp) // Evita che il testo si tagli su schermi stretti
+                        ) {
+                            Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("BUY (+1)", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+
                         Button(
                             onClick = {
-                                if (selectedPhotoUri != null) {
-                                    // 1. CONSUMA IL CREDITO
-                                    TransferState.hasCredit = false // Globale
-                                    hasCredit = false // Locale (aggiorna la UI subito)
-
-                                    // 2. NAVIGA
+                                if (canPrint) {
+                                    TransferState.credits -= 1
+                                    creditCount = TransferState.credits
                                     val encodedUri = Uri.encode(selectedPhotoUri)
                                     navController.navigate("audio_connect/$encodedUri")
-                                } else {
-                                    Toast.makeText(context, "Select a photo first", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF8BC34A), // VERDE
-                                contentColor = Color.White
+                                containerColor = if (canPrint) Color(0xFF8BC34A) else Color(0xFFE0E0E0),
+                                contentColor = if (canPrint) Color.White else Color.Gray
                             ),
                             shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
-                            Icon(Icons.Default.Print, null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("PRINT SELECTED", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Icon(Icons.Default.Print, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (canPrint) "PRINT" else "SELECT", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     } else {
-                        // --- CASO B: NON HAI CREDITI -> COMPRA ---
                         Button(
                             onClick = { showBuyDialog = true },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Black, // NERO
-                                contentColor = Color.White
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
                             shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
+                            modifier = Modifier.weight(1f).height(56.dp)
                         ) {
-                            Icon(Icons.Default.CreditCard, null)
+                            Icon(Icons.Default.CreditCard, null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("BUY CREDIT (1€)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

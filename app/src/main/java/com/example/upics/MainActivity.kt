@@ -17,13 +17,16 @@ import androidx.navigation.navArgument
 import com.example.upics.ui.theme.*
 
 // --- OGGETTO PONTE (SALVA I DATI ANCHE SE RUOTI) ---
+// --- OGGETTO PONTE (SALVA I DATI ANCHE SE RUOTI) ---
 object TransferState {
     var lastEditState: PhotoEditState = PhotoEditState()
 
-    // AGGIUNGI QUESTA RIGA QUI SOTTO:
-    var hasCredit: Boolean = false
-}
+    // 1. IL PORTAFOGLIO: Ora è un numero (Int) così puoi accumulare crediti!
+    var credits: Int = 0
 
+    // 2. LA GALLERIA: Qui l'app si ricorderà le foto create in questa sessione
+    var savedPhotos: List<String> = emptyList()
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -145,6 +148,18 @@ fun AppNavigation() {
 
         composable("history") {
             HistoryScreen(navController = navController)
+        }
+
+        composable("terms") {
+            TermsScreen(navController = navController)
+        }
+
+        composable("about") {
+            AboutScreen(navController = navController)
+        }
+
+        composable("help") {
+            HelpScreen(navController = navController)
         }
     }
 }
