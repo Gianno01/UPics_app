@@ -191,7 +191,8 @@ fun ResumeScreen(
                                 if (termsAccepted) showPaymentDialog = true
                                 else showValidationError = true
                             },
-                            onPrint = { exportRequest = true } // PRINT = salva
+                            onPrint = { if (termsAccepted) exportRequest = true
+                            else showValidationError = true } // PRINT = salva
                         )
                     }
                 }
@@ -264,7 +265,9 @@ fun ResumeScreen(
 
                         PrintButtons(
                             onBack = { navController.popBackStack() },
-                            onPrint = { exportRequest = true } // PRINT = salva
+                            onPrint = { if (termsAccepted) exportRequest = true
+                            else showValidationError = true },
+                            isEnabled = termsAccepted
                         )
 
                         Spacer(Modifier.height(10.dp))
@@ -326,14 +329,16 @@ fun ResumeContent(
 
     PrintButtons(
         onBack = onBack,
-        onPrint = onPrint
+        onPrint = onPrint,
+        isEnabled = terms
     )
 }
 
 @Composable
 fun PrintButtons(
     onBack: () -> Unit,
-    onPrint: () -> Unit
+    onPrint: () -> Unit,
+    isEnabled: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -351,10 +356,12 @@ fun PrintButtons(
 
         Button(
             onClick = onPrint,
+            enabled = isEnabled,
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF8BC34A),
-                contentColor = Color.White
+                contentColor = Color.White,
+                disabledContainerColor = Color.LightGray
             ),
             modifier = Modifier
                 .weight(1f)
