@@ -1,5 +1,6 @@
 package com.example.upics
 
+import android.net.Uri
 import android.os.Build.VERSION.SDK_INT
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -9,9 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +36,10 @@ import coil.request.ImageRequest
 fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit = {}) {
     val context = LocalContext.current
 
-    // Configurazione Loader per gestire GIF e SVG
+    // LEGGIAMO LO STATO GLOBALE: L'utente ha pagato?
+    val hasCredit = TransferState.hasCredit
+
+    // Loader Immagini (come prima)
     val imageLoader = ImageLoader.Builder(context)
         .components {
             if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
@@ -42,13 +47,11 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
         }
         .build()
 
-    // Sfondo (es. una GIF animata)
     val backgroundPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.bho).build(),
         imageLoader = imageLoader
     )
 
-    // Immagine centrale (Logo o Scritta)
     val scrittaPainter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context).data(R.raw.scritta).build(),
         imageLoader = imageLoader
@@ -64,30 +67,52 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // 2. HEADER
             CommonHeader()
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. LOGO CENTRALE
+            // 2. LOGO CENTRALE
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f), // Occupa lo spazio disponibile al centro
+                    .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = scrittaPainter,
                     contentDescription = "Scritta Home",
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .wrapContentHeight(),
+                    modifier = Modifier.fillMaxWidth(0.8f).wrapContentHeight(),
                     contentScale = ContentScale.Fit
                 )
             }
         }
 
-        // 4. MENU INFERIORE (Surface arrotondata)
+        // 3. SEZIONE CREDITI ATTIVI (Nuova!)
+        // Se l'utente ha pagato, appare questo bottone flottante sopra il menu
+        if (hasCredit) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 220.dp) // Posizionato sopra il menu bianco
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        // 1. CONSUMA IL CREDITO
+                        TransferState.hasCredit = false
+
+                        // 2. VAI ALLA STAMPA (Usiamo un placeholder per la demo)
+                        val dummyUri = Uri.encode("android.resource://com.example.upics/drawable/sample")
+                        navController?.navigate("audio_connect/$dummyUri")
+                    },
+                    containerColor = Color(0xFF8BC34A), // Verde Upics
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Default.Print, "Print Now") },
+                    text = { Text("CREDIT AVAILABLE: PRINT NOW") }
+                )
+            }
+        }
+
+        // 4. MENU INFERIORE
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -96,9 +121,7 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
             color = Color.White
         ) {
             Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(),
+                modifier = Modifier.padding(24.dp).fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Riga pulsanti Azione
@@ -106,38 +129,28 @@ fun HomeScreen(navController: NavController? = null, onOpenGallery: () -> Unit =
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    ActionButton(
-                        icon = Icons.Default.Upload,
-                        text = "Upload\nphotos",
-                        onClick = { onOpenGallery() }
-                    )
-                    ActionButton(
-                        icon = Icons.Default.PhotoCamera,
-                        text = "Take\nphotos",
-                        onClick = { Toast.makeText(context, "Usa Upload per ora", Toast.LENGTH_SHORT).show() }
-                    )
-                    ActionButton(
-                        icon = Icons.Default.DateRange,
-                        text = "History",
-                        onClick = { Toast.makeText(context, "History", Toast.LENGTH_SHORT).show() }
-                    )
+                    ActionButton(Icons.Default.Upload, "Upload\nphotos") { onOpenGallery() }
+                    ActionButton(Icons.Default.PhotoCamera, "Take\nphotos") { Toast.makeText(context, "Usa Upload", Toast.LENGTH_SHORT).show() }
+
+                    // Il pulsante History punta alla nuova schermata
+                    ActionButton(Icons.Default.DateRange, "History\n${if(hasCredit) "(1)" else ""}") {
+                        navController?.navigate("history")
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Pulsanti Menu Testuali
-                MenuButton(text = "Need Help?", color = Color(0xFFE0E0E0), textColor = Color.Black)
+                MenuButton("Need Help?", Color(0xFFE0E0E0), Color.Black)
                 Spacer(modifier = Modifier.height(12.dp))
-                MenuButton(text = "About Us", color = Color(0xFFE0E0E0), textColor = Color.Black)
+                MenuButton("About Us", Color(0xFFE0E0E0), Color.Black)
                 Spacer(modifier = Modifier.height(12.dp))
-                MenuButton(text = "Terms and Condictions", color = Color.Black, textColor = Color.White)
+                MenuButton("Terms and Condictions", Color.Black, Color.White)
             }
         }
     }
 }
 
 // --- COMPONENTI LOCALI ---
-
 @Composable
 fun ActionButton(icon: ImageVector, text: String, onClick: () -> Unit) {
     OutlinedButton(
@@ -160,9 +173,7 @@ fun MenuButton(text: String, color: Color, textColor: Color) {
     val context = LocalContext.current
     Button(
         onClick = { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp),
+        modifier = Modifier.fillMaxWidth().height(50.dp),
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = textColor),
         border = if (color == Color.Black) null else BorderStroke(1.dp, Color.Gray)

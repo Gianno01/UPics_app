@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "61252485516",
+    "firebase_url": "https://did-salotto-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "did-salotto",
+    "storage_bucket": "did-salotto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:61252485516:android:aa07010c7f94f9b3e416a9",
+        "android_client_info": {
+          "package_name": "com.example.didsalotto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4RqPf3Qd54Yv9Ien9x5cXCr4VKJvXJek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:61252485516:android:388f7c1373731bcae416a9",
+        "android_client_info": {
+          "package_name": "com.example.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4RqPf3Qd54Yv9Ien9x5cXCr4VKJvXJek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

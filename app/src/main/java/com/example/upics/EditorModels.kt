@@ -1,28 +1,26 @@
 package com.example.upics
 
-import androidx.compose.ui.graphics.Color
-import java.util.UUID
+// 1. Gli strumenti disponibili
+enum class EditorTool { NONE, FILTER, TRANSFORM, EMOJI, TEXT }
 
-// Rappresenta uno Sticker
-data class StickerLayer(
-    val id: String = UUID.randomUUID().toString(),
-    val emoji: String,
-    var offsetX: Float = 0f,
-    var offsetY: Float = 0f,
-    var scale: Float = 1f
-)
-
-// Stato completo delle modifiche (Persistente)
+// 2. Lo stato della modifica
 data class PhotoEditState(
-    var filterName: String = "Normal",
-    var caption: String = "",
-    var rotation: Float = 0f,
-    var scaleX: Float = 1f, // Specchio orizzontale
-    var scaleY: Float = 1f, // Specchio verticale
-    var zoom: Float = 1f,
-    val stickers: MutableList<StickerLayer> = mutableListOf()
+    val filterName: String = "Normal",
+    val rotation: Float = 0f,
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f,
+    val zoom: Float = 1f,
+    val panX: Float = 0f, // <--- NUOVO: Spostamento orizzontale
+    val panY: Float = 0f, // <--- NUOVO: Spostamento verticale
+    val caption: String = "",
+    val stickers: List<StickerLayer> = emptyList()
 )
 
-enum class EditorTool {
-    NONE, TEXT, EMOJI, FILTER, TRANSFORM
-}
+// 3. Cos'è uno sticker
+data class StickerLayer(
+    val id: Long = System.currentTimeMillis(),
+    val emoji: String,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val scale: Float = 1f
+)
