@@ -122,8 +122,7 @@ fun AppNavigation() {
             arguments = listOf(navArgument("photoUri") { type = NavType.StringType })
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("photoUri") ?: ""
-            AudioConnectScreen(navController = navController, photoUri = uriString)
-        }
+            AudioConnectScreen(navController = navController, encodedUri = uriString)        }
 
         // 6. PRINTING SCREEN (STAMPA)
         composable(
