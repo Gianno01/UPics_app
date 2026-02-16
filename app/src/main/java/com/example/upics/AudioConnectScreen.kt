@@ -1,7 +1,8 @@
 package com.example.upics
 
 import android.content.res.Configuration
-import android.widget.Toast
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Hearing
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,12 +29,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import kotlinx.coroutines.delay
-import android.media.AudioManager
-import android.media.ToneGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
+
 @Composable
 fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCode: String?) {
     val coroutineScope = rememberCoroutineScope()
@@ -48,28 +49,14 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
     var connectionSuccess by remember { mutableStateOf(false) }
     var hasPlayedOnce by remember { mutableStateOf(false) }
 
+    // Mantiene traccia del Job audio per poterlo cancellare se l'utente esce dalla schermata
+    var audioJob by remember { mutableStateOf<Job?>(null) }
+
     // Intercetta il tasto indietro fisico del telefono
+    // Ora interrompe e chiude direttamente la schermata
     BackHandler {
-        if (isPlaying) {
-            Toast.makeText(context, "Stop transmission first!", Toast.LENGTH_SHORT).show()
-        } else {
-            navController.popBackStack()
-        }
-    }
-
-    // --- LOGICA DI SIMULAZIONE AUDIO ---
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            connectionStatus = "Transmitting Audio Token..."
-            delay(4000)
-
-            isPlaying = false
-            connectionSuccess = true
-            hasPlayedOnce = true
-            connectionStatus = "Print Successful! 🎉"
-        } else if (!connectionSuccess) {
-            connectionStatus = "Ready to connect"
-        }
+        audioJob?.cancel()
+        navController.popBackStack()
     }
 
     val isDoneEnabled = hasPlayedOnce && !isPlaying
@@ -124,8 +111,53 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                     contentAlignment = Alignment.Center
                 ) {
                     RadarButton(isPlaying) {
-                        if (!isPlaying) { isPlaying = true; connectionSuccess = false }
-                        else { isPlaying = false }
+                        if (!isPlaying) {
+                            audioJob = coroutineScope.launch {
+                                isPlaying = true
+                                connectionSuccess = false
+                                connectionStatus = "Transmitting Audio Token..."
+
+                                // --- INIZIO LOGICA DTMF ---
+                                if (pinCode != null) {
+                                    withContext(Dispatchers.IO) {
+                                        val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                                        pinCode.forEach { char ->
+                                            // Controllo di cancellazione nel caso l'utente esca
+                                            if (!isActive) return@forEach
+
+                                            val toneType = when (char) {
+                                                '1' -> ToneGenerator.TONE_DTMF_1
+                                                '2' -> ToneGenerator.TONE_DTMF_2
+                                                '3' -> ToneGenerator.TONE_DTMF_3
+                                                '4' -> ToneGenerator.TONE_DTMF_4
+                                                '5' -> ToneGenerator.TONE_DTMF_5
+                                                '6' -> ToneGenerator.TONE_DTMF_6
+                                                '7' -> ToneGenerator.TONE_DTMF_7
+                                                '8' -> ToneGenerator.TONE_DTMF_8
+                                                '9' -> ToneGenerator.TONE_DTMF_9
+                                                '0' -> ToneGenerator.TONE_DTMF_0
+                                                else -> -1
+                                            }
+
+                                            if (toneType != -1) {
+                                                toneGenerator.startTone(toneType, 300)
+                                                delay(400)
+                                            }
+                                        }
+                                        toneGenerator.release()
+                                    }
+                                } else {
+                                    // Fallback simulazione 4 secondi se il PIN non c'è
+                                    delay(4000)
+                                }
+                                // --- FINE LOGICA DTMF ---
+
+                                isPlaying = false
+                                connectionSuccess = true
+                                hasPlayedOnce = true
+                                connectionStatus = "Print Successful! 🎉"
+                            }
+                        }
                     }
                 }
             }
@@ -141,18 +173,18 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
 
                 RadarButton(isPlaying) {
                     if (!isPlaying) {
-                        // Avvia la coroutine per la riproduzione dei toni
-                        coroutineScope.launch {
+                        audioJob = coroutineScope.launch {
                             isPlaying = true
                             connectionSuccess = false
+                            connectionStatus = "Transmitting Audio Token..."
 
                             // --- INIZIO LOGICA DTMF ---
                             if (pinCode != null) {
-                                // Esegui la generazione dei toni su un thread separato (IO)
-                                // per non bloccare la coroutine principale per troppo tempo.
                                 withContext(Dispatchers.IO) {
-                                    val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100) // Volume
+                                    val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                                     pinCode.forEach { char ->
+                                        if (!isActive) return@forEach
+
                                         val toneType = when (char) {
                                             '1' -> ToneGenerator.TONE_DTMF_1
                                             '2' -> ToneGenerator.TONE_DTMF_2
@@ -168,22 +200,24 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                                         }
 
                                         if (toneType != -1) {
-                                            toneGenerator.startTone(toneType, 300) // Durata tono: 200ms
-                                            delay(400) // Pausa tra i toni
+                                            toneGenerator.startTone(toneType, 300)
+                                            delay(400)
                                         }
                                     }
-                                    toneGenerator.release() // Rilascia le risorse
+                                    toneGenerator.release()
                                 }
+                            } else {
+                                // Fallback simulazione
+                                delay(4000)
                             }
                             // --- FINE LOGICA DTMF ---
 
-                            // Aggiorna lo stato al termine della riproduzione
                             isPlaying = false
                             connectionSuccess = true
                             hasPlayedOnce = true
+                            connectionStatus = "Print Successful! 🎉"
                         }
                     }
-                    else { isPlaying = false }
                 }
 
                 Spacer(modifier = Modifier.weight(1f)) // Molla inferiore (spinge InfoBox tutto in basso)
@@ -208,8 +242,8 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                 // Tasto Indietro a Sinistra
                 OutlinedIconButton(
                     onClick = {
-                        if (isPlaying) Toast.makeText(context, "Stop transmission first!", Toast.LENGTH_SHORT).show()
-                        else navController.popBackStack()
+                        audioJob?.cancel()
+                        navController.popBackStack()
                     },
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Color.LightGray),
@@ -218,7 +252,7 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = if (isPlaying) Color.LightGray else Color.Black
+                        tint = Color.Black
                     )
                 }
 
@@ -303,25 +337,29 @@ fun RadarButton(isPlaying: Boolean, onClick: () -> Unit) {
             Box(modifier = Modifier.size(100.dp).scale(wave2Scale).background(Color(0xFF8BC34A).copy(alpha = wave2Alpha * 0.3f), CircleShape))
         }
 
+        // Il Bottone Fisico al Centro
         Button(
             onClick = onClick,
+            enabled = !isPlaying,
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isPlaying) Color.Black else Color(0xFF8BC34A),
-                contentColor = Color.White
+                containerColor = Color(0xFF8BC34A),
+                contentColor = Color.White,
+                disabledContainerColor = Color(0xFFE0E0E0),
+                disabledContentColor = Color.Gray
             ),
             modifier = Modifier.size(120.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 2.dp)
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 0.dp, disabledElevation = 0.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.VolumeUp,
+                    imageVector = Icons.Default.VolumeUp,
                     contentDescription = null,
                     modifier = Modifier.size(36.dp)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (isPlaying) "STOP" else "START",
+                    text = if (isPlaying) "PLAYING" else "START",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
@@ -353,4 +391,3 @@ fun DoneButton(navController: NavController, isEnabled: Boolean) {
         Text("Done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
-

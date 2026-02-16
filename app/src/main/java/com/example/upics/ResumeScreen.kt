@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,9 +44,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.blue
-import androidx.core.graphics.green
-import androidx.core.graphics.red
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -107,6 +102,7 @@ fun ResumeScreen(
         .fillMaxSize()
         .background(Color(0xFFFAFAFA))) {
         if (isLandscape) {
+            // === LAYOUT ORIZZONTALE ===
             Row(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier
                     .weight(1f)
@@ -114,16 +110,24 @@ fun ResumeScreen(
                     HeroPolaroidCapturable(photoUri, editState, actionAfterExport) { bmp ->
                         val savedUri = saveJpegToGallery(context, bmp)
                         if (savedUri != null) {
-                            // MAGIA: Salviamo il link della foto nella Galleria dell'App!
+                            // Salvataggio nella galleria dell'app
                             if (!TransferState.savedPhotos.contains(savedUri.toString())) {
                                 TransferState.savedPhotos = listOf(savedUri.toString()) + TransferState.savedPhotos
                             }
+
                             if (actionAfterExport == "SAVE") {
                                 Toast.makeText(context, "Saved to Gallery!", Toast.LENGTH_SHORT).show()
                             } else if (actionAfterExport == "PRINT") {
                                 TransferState.credits -= 1
                                 creditCount = TransferState.credits
-                                navController.navigate("audio_connect/${Uri.encode(savedUri.toString())}")
+
+                                // Genera PIN e naviga
+                                var generatedPin = "0000"
+                                while (generatedPin == "0000") {
+                                    generatedPin = (1..4).joinToString("") { (0..9).random().toString() }
+                                }
+                                Firebase.database.getReference("VendingMachines/VM001/pairing_tones").setValue(generatedPin)
+                                navController.navigate("audio_connect/${Uri.encode(savedUri.toString())}/$generatedPin")
                             }
                         }
                         actionAfterExport = ""
@@ -144,6 +148,7 @@ fun ResumeScreen(
                 }
             }
         } else {
+            // === LAYOUT VERTICALE ===
             Column(modifier = Modifier.fillMaxSize()) {
                 CommonHeader()
                 Box(modifier = Modifier
@@ -153,21 +158,23 @@ fun ResumeScreen(
                     HeroPolaroidCapturable(photoUri, editState, actionAfterExport) { bmp ->
                         val savedUri = saveJpegToGallery(context, bmp)
                         if (savedUri != null) {
-                            // ... logica per salvare la foto
+                            // Salvataggio nella galleria dell'app (Ora funziona!)
+                            if (!TransferState.savedPhotos.contains(savedUri.toString())) {
+                                TransferState.savedPhotos = listOf(savedUri.toString()) + TransferState.savedPhotos
+                            }
 
-                            if (actionAfterExport == "PRINT") {
+                            if (actionAfterExport == "SAVE") {
+                                Toast.makeText(context, "Saved to Gallery!", Toast.LENGTH_SHORT).show()
+                            } else if (actionAfterExport == "PRINT") {
                                 TransferState.credits -= 1
                                 creditCount = TransferState.credits
 
-                                // --- 1. GENERA IL PIN ---
-                                // Genera 4 numeri casuali e li unisce in una stringa (es. "1234")
+                                // Genera PIN e naviga
                                 var generatedPin = "0000"
                                 while (generatedPin == "0000") {
                                     generatedPin = (1..4).joinToString("") { (0..9).random().toString() }
                                 }
                                 Firebase.database.getReference("VendingMachines/VM001/pairing_tones").setValue(generatedPin)
-                                // --- 2. MODIFICA LA NAVIGAZIONE ---
-                                // Aggiungi il pin alla rotta
                                 navController.navigate("audio_connect/${Uri.encode(savedUri.toString())}/$generatedPin")
                             }
                         }
@@ -247,12 +254,20 @@ fun ColumnScope.ResumeContent(
 }
 
 @Composable
-fun HeroPolaroidCapturable(photoUri: Uri, editState: PhotoEditState, actionAfterExport: String, onExported: (Bitmap) -> Unit) {
+fun HeroPolaroidCapturable(
+    photoUri: Uri,
+    editState: PhotoEditState,
+    actionAfterExport: String,
+    onExported: (Bitmap) -> Unit
+) {
     val graphicsLayer = rememberGraphicsLayer()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Box(
         modifier = Modifier
-            .then(if (isLandscape) Modifier.fillMaxHeight(0.9f) else Modifier.fillMaxWidth())
+            // SE È IN ORIZZONTALE usa il 90% dell'altezza, SE È IN VERTICALE usa l'85% della larghezza
+            .then(if (isLandscape) Modifier.fillMaxHeight(0.9f) else Modifier.fillMaxWidth(0.85f))
+            // Mantiene le proporzioni da Polaroid, ma limitandone la grandezza
             .aspectRatio(0.85f)
             .rotate(0f)
             .drawWithContent {
@@ -260,7 +275,14 @@ fun HeroPolaroidCapturable(photoUri: Uri, editState: PhotoEditState, actionAfter
                 drawLayer(graphicsLayer)
             },
         contentAlignment = Alignment.Center
-    ) { Surface(color = Color.White, shape = RoundedCornerShape(2.dp)) { PolaroidFinalPreviewNoShadow(photoUri, editState) } }
+    ) {
+        Surface(
+            color = Color.White,
+            shape = RoundedCornerShape(2.dp)
+        ) {
+            PolaroidFinalPreviewNoShadow(photoUri, editState)
+        }
+    }
 
     LaunchedEffect(actionAfterExport) {
         if (actionAfterExport.isNotEmpty()) {
@@ -300,9 +322,9 @@ fun processImageForPeriPage(originalBitmap: Bitmap): Pair<String, Int> {
     val grayPixels = FloatArray(width * height)
     for (i in pixels.indices) {
         val pixel = pixels[i]
-        val r = android.graphics.Color.red(pixel)    // CORRETTO: usa il metodo statico red()
-        val g = android.graphics.Color.green(pixel)  // CORRETTO: usa il metodo statico green()
-        val b = android.graphics.Color.blue(pixel)   // CORRETTO: usa il metodo statico blue()
+        val r = android.graphics.Color.red(pixel)
+        val g = android.graphics.Color.green(pixel)
+        val b = android.graphics.Color.blue(pixel)
         grayPixels[i] = (r * 0.299f + g * 0.587f + b * 0.114f)
     }
 

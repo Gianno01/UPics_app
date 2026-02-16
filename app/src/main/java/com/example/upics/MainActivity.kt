@@ -26,6 +26,7 @@ object TransferState {
     // 2. LA GALLERIA: Qui l'app si ricorderà le foto create in questa sessione
     var savedPhotos: List<String> = emptyList()
 }
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,10 +54,15 @@ fun AppNavigation() {
         }
     }
 
-    // --- START DESTINATION ORA È "AUTH" (LOGIN CLASSICO) ---
-    NavHost(navController = navController, startDestination = "auth") {
+    // --- START DESTINATION ORA È "splash" ---
+    NavHost(navController = navController, startDestination = "splash") {
 
-        // 1. AUTH SCREEN (Login/Registrazione - Prima schermata)
+        // 0. SPLASH SCREEN (Animazione Iniziale)
+        composable("splash") {
+            SplashScreen(navController = navController)
+        }
+
+        // 1. AUTH SCREEN (Login/Registrazione)
         composable("auth") {
             AuthScreen(navController)
         }
@@ -104,18 +110,10 @@ fun AppNavigation() {
                 navController = navController,
                 photoUri = uri,
                 editState = TransferState.lastEditState
-            ) // <-- Qui dentro, quando premi "Pay", naviga verso l'audio connect modificando l'azione nel file ResumeScreen o gestendo la navigazione qui se avessimo callback (ma ResumeScreen gestisce la navigazione internamente nel codice che mi hai mandato, quindi vedi nota sotto).
+            )
         }
 
-        // NOTA: ResumeScreen.kt nel codice originale faceva navController.navigate("printing...").
-        // Dobbiamo intercettarlo o modificarlo.
-        // Visto che ResumeScreen usa navController diretto, la modifica va fatta IN ResumeScreen.kt o aggiornando qui se usassi callback.
-        // PER SEMPLIFICARTI LA VITA: Ho riscritto la logica qui sotto usando una versione modificata di ResumeScreen
-        // MA dato che non posso modificare ResumeScreen.kt da qui, ti chiedo di modificare ResumeScreen.kt:
-        // Cerca la riga: navController.navigate("printing/$encodedUri")
-        // E cambiala con: navController.navigate("audio_connect/$encodedUri")
-
-        // 5. AUDIO CONNECT SCREEN (NUOVO PASSAGGIO)
+        // 5. AUDIO CONNECT SCREEN
         composable(
             route = "audio_connect/{photoUri}/{pinCode}",
             arguments = listOf(
@@ -153,7 +151,7 @@ fun AppNavigation() {
             PrintSuccessScreen(navController = navController)
         }
 
-
+        // 8. ALTRE SCHERMATE DI SERVIZIO
         composable("history") {
             HistoryScreen(navController = navController)
         }
@@ -171,4 +169,3 @@ fun AppNavigation() {
         }
     }
 }
-

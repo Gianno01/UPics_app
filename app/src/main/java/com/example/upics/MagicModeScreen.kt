@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateLeft
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.*
@@ -53,13 +52,13 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import kotlin.math.roundToInt
 import androidx.compose.runtime.saveable.rememberSaveable
+
 @Composable
 fun MagicModeScreen(
     navController: NavController,
     photoUri: Uri,
     onSaveMoves: (PhotoEditState) -> Unit
 ) {
-    // Stati
     // --- STATI (ANTI-ROTAZIONE) ---
     // 1. Invece di ripartire da zero, peschiamo i dati dalla cassaforte
     var editState by remember { mutableStateOf(TransferState.lastEditState) }
@@ -72,6 +71,7 @@ fun MagicModeScreen(
     // 3. rememberSaveable "sopravvive" alla rotazione, ricordando i menu aperti
     var activeTool by rememberSaveable { mutableStateOf(EditorTool.NONE) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
+
     // Rileva orientamento
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -122,7 +122,7 @@ fun MagicModeScreen(
                 }
             }
 
-            // 2. DESTRA: Barra Strumenti Laterale
+            // 2. DESTRA: Barra Strumenti Laterale con Footer Fisso
             Surface(
                 modifier = Modifier
                     .width(360.dp)
@@ -133,82 +133,94 @@ fun MagicModeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp)
                 ) {
-                    // 1. Titolo fissa in alto
-                    Text("Magic Tools ✨", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-
-                    // 2. LA MOLLA: Spinge le opzioni verso il basso, vicino ai pollici!
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // 3. Area Opzioni (Emoji, Filtri, Slider) - Ora appare appena sopra i bottoni
-                    AnimatedVisibility(visible = activeTool != EditorTool.NONE) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp) // Piccolo stacco dalle icone
-                                .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
-                                .padding(vertical = 12.dp, horizontal = 8.dp)
-                        ) {
-                            ActiveToolOptions(
-                                activeTool = activeTool,
-                                editState = editState,
-                                photoUri = photoUri,
-                                onStateChange = { editState = it }
-                            )
-                        }
-                    }
-
-                    // 4. Le 3 Icone degli Strumenti
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    // --- PARTE SCROLLABILE (Titolo, Opzioni, Strumenti) ---
+                    Column(
+                        modifier = Modifier
+                            .weight(1f) // Occupa tutto lo spazio disponibile sopra il footer
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp) // Padding interno per il contenuto scrollabile
                     ) {
-                        EditorToolButton(
-                            Icons.Default.AutoAwesome,
-                            "Filters",
-                            activeTool == EditorTool.FILTER
-                        ) {
-                            activeTool =
-                                if (activeTool == EditorTool.FILTER) EditorTool.NONE else EditorTool.FILTER
+                        // 1. Titolo fissa in alto con protezione per la barra di stato (notch)
+                        Box(modifier = Modifier.statusBarsPadding()) {
+                            Text("Magic Tools ✨", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                         }
-                        EditorToolButton(
-                            Icons.Default.EmojiEmotions,
-                            "Stickers",
-                            activeTool == EditorTool.EMOJI
-                        ) {
-                            activeTool =
-                                if (activeTool == EditorTool.EMOJI) EditorTool.NONE else EditorTool.EMOJI
+
+                        // 2. Spazio superiore fisso
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // 3. Area Opzioni (Emoji, Filtri, Slider)
+                        AnimatedVisibility(visible = activeTool != EditorTool.NONE) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .padding(vertical = 12.dp, horizontal = 8.dp)
+                            ) {
+                                ActiveToolOptions(
+                                    activeTool = activeTool,
+                                    editState = editState,
+                                    photoUri = photoUri,
+                                    onStateChange = { editState = it }
+                                )
+                            }
                         }
-                        EditorToolButton(
-                            Icons.Default.CropRotate,
-                            "Transform",
-                            activeTool == EditorTool.TRANSFORM
+
+                        // 4. Le 3 Icone degli Strumenti
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            activeTool =
-                                if (activeTool == EditorTool.TRANSFORM) EditorTool.NONE else EditorTool.TRANSFORM
+                            EditorToolButton(
+                                Icons.Default.AutoAwesome,
+                                "Filters",
+                                activeTool == EditorTool.FILTER
+                            ) {
+                                activeTool =
+                                    if (activeTool == EditorTool.FILTER) EditorTool.NONE else EditorTool.FILTER
+                            }
+                            EditorToolButton(
+                                Icons.Default.EmojiEmotions,
+                                "Stickers",
+                                activeTool == EditorTool.EMOJI
+                            ) {
+                                activeTool =
+                                    if (activeTool == EditorTool.EMOJI) EditorTool.NONE else EditorTool.EMOJI
+                            }
+                            EditorToolButton(
+                                Icons.Default.CropRotate,
+                                "Transform",
+                                activeTool == EditorTool.TRANSFORM
+                            ) {
+                                activeTool =
+                                    if (activeTool == EditorTool.TRANSFORM) EditorTool.NONE else EditorTool.TRANSFORM
+                            }
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = Color(0xFFEEEEEE)) // Usiamo HorizontalDivider che è più moderno
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // --- PARTE FISSA (Divisore e Bottoni) ---
+                    HorizontalDivider(color = Color(0xFFEEEEEE))
 
                     // 5. I Tasti Azione (Freccia e Salva)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp) // Padding per la barra fissa
+                            .navigationBarsPadding(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Tasto Indietro (Sinistra)
+                        // Tasto Indietro (Sinistra) - AGGIORNATO CON RETTANGOLO SMUSSATO
                         OutlinedIconButton(
                             onClick = { showExitDialog = true },
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(16.dp), // <--- MODIFICATO QUI
                             border = BorderStroke(1.dp, Color.LightGray),
                             modifier = Modifier.size(56.dp)
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
+                                Icons.Default.ArrowBack,
                                 contentDescription = "Back",
                                 tint = Color.Black
                             )
@@ -232,16 +244,18 @@ fun MagicModeScreen(
                         }
                     }
                 }
-            }}
+            }
+        }
     } else {
         // === PORTRAIT (VERTICALE - CLASSICO) ===
-        // Questo rimane invariato
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFFAFAFA))
         ) {
-            CommonHeader()
+            Box(modifier = Modifier.statusBarsPadding()) {
+                CommonHeader()
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -304,13 +318,14 @@ fun MagicModeScreen(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Tasto Indietro (Sinistra) - AGGIORNATO CON RETTANGOLO SMUSSATO
                         OutlinedIconButton(
                             onClick = { showExitDialog = true },
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(16.dp), // <--- MODIFICATO QUI
                             border = BorderStroke(1.dp, Color.LightGray),
                             modifier = Modifier.size(56.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.Black)
                         }
 
                         Button(

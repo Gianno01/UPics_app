@@ -211,7 +211,8 @@ fun HistoryScreen(navController: NavController) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = if (isLandscape) 16.dp else 32.dp),
+                    .padding(bottom = if (isLandscape) 16.dp else 32.dp)
+                    .navigationBarsPadding(),
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
                 shadowElevation = 8.dp
@@ -256,7 +257,9 @@ fun HistoryScreen(navController: NavController) {
                                     TransferState.credits -= 1
                                     creditCount = TransferState.credits
                                     val encodedUri = Uri.encode(selectedPhotoUri)
-                                    navController.navigate("audio_connect/$encodedUri")
+                                    val dummyPin = "1234" // <-- ECCO IL FIX: PIN AGGIUNTO
+                                    // Navigazione corretta con due argomenti: photoUri e pinCode
+                                    navController.navigate("audio_connect/$encodedUri/$dummyPin")
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
