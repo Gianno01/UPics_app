@@ -7,6 +7,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.net.Uri
+import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -43,11 +44,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.blue
+import androidx.core.graphics.green
+import androidx.core.graphics.red
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.google.firebase.Firebase
+import com.google.firebase.database.database
 import kotlinx.coroutines.delay
-import java.io.ByteArrayOutputStream
+import java.util.BitSet
 import kotlin.math.roundToInt
 
 @Composable
@@ -229,8 +235,83 @@ fun HeroPolaroidCapturable(photoUri: Uri, editState: PhotoEditState, actionAfter
         if (actionAfterExport.isNotEmpty()) {
             val hardwareBmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
             onExported(hardwareBmp)
+
+            val softwareBmp = hardwareBmp.copy(Bitmap.Config.ARGB_8888, true)
+            val result = processImageForPeriPage(softwareBmp)
+            val base64ToUpload = result.first
+            val heightToUpload = result.second
+
+            // Carica su Firebase
+            val imageMap = mapOf(
+                "data" to base64ToUpload,
+                "height" to heightToUpload
+            )
+            println(imageMap)
+            Firebase.database.getReference("VendingMachines/VM001/image").setValue(imageMap)
         }
     }
+}
+
+fun processImageForPeriPage(originalBitmap: Bitmap): Pair<String, Int> {
+    val targetWidth = 384
+    // 1. Resize proporzionale
+    val aspectRatio = originalBitmap.height.toDouble() / originalBitmap.width.toDouble()
+    val targetHeight = (targetWidth * aspectRatio).toInt()
+    val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+
+    val width = scaledBitmap.width
+    val height = scaledBitmap.height
+
+    // Array dei pixel in scala di grigi (0-255) per il dithering
+    val pixels = IntArray(width * height)
+    scaledBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+    val grayPixels = FloatArray(width * height)
+    for (i in pixels.indices) {
+        val pixel = pixels[i]
+        val r = android.graphics.Color.red(pixel)    // CORRETTO: usa il metodo statico red()
+        val g = android.graphics.Color.green(pixel)  // CORRETTO: usa il metodo statico green()
+        val b = android.graphics.Color.blue(pixel)   // CORRETTO: usa il metodo statico blue()
+        grayPixels[i] = (r * 0.299f + g * 0.587f + b * 0.114f)
+    }
+
+    // 2. Floyd-Steinberg Dithering
+    val blackAndWhite = BitSet(width * height)
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val idx = y * width + x
+            val oldPixel = grayPixels[idx]
+            val newPixel = if (oldPixel < 128) 0f else 255f
+            val error = oldPixel - newPixel
+
+            // Se il pixel è nero, settiamo il bit a 1
+            if (newPixel == 0f) blackAndWhite.set(idx)
+
+            // Distribuzione errore
+            if (x + 1 < width) grayPixels[idx + 1] += error * 7 / 16
+            if (y + 1 < height) {
+                if (x > 0) grayPixels[idx + width - 1] += error * 3 / 16
+                grayPixels[idx + width] += error * 5 / 16
+                if (x + 1 < width) grayPixels[idx + width + 1] += error * 1 / 16
+            }
+        }
+    }
+
+    // 3. Bit-Packing (8 pixel = 1 byte)
+    val outputBytes = ByteArray((width / 8) * height)
+    for (i in 0 until (width * height)) {
+        if (blackAndWhite.get(i)) {
+            val byteIdx = i / 8
+            val bitIdx = i % 8
+            // PeriPage usa il bit più significativo (MSB) per il primo pixel a sinistra
+            outputBytes[byteIdx] = (outputBytes[byteIdx].toInt() or (0x80 shr bitIdx)).toByte()
+        }
+    }
+
+    // 4. Conversione Base64
+    val base64String = Base64.encodeToString(outputBytes, Base64.NO_WRAP)
+
+    return Pair(base64String, height)
 }
 
 private fun Bitmap.toGrayscale(): Bitmap {
