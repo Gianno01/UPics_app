@@ -16,8 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.upics.ui.theme.*
 
-// --- OGGETTO PONTE (SALVA I DATI ANCHE SE RUOTI) ---
-// --- OGGETTO PONTE (SALVA I DATI ANCHE SE RUOTI) ---
+// --- OGGETTO PONTE (SALVA I DATI ANCHE SE RUOTI) --- //
 object TransferState {
     var lastEditState: PhotoEditState = PhotoEditState()
 

@@ -35,10 +35,10 @@ import androidx.navigation.NavController
 
 @Composable
 fun AboutScreen(navController: NavController) {
-    // Gestione tasto indietro fisico
+    // Handle physical back button
     BackHandler { navController.popBackStack() }
 
-    // Stato per gestire quale card è espansa
+    // State to manage which card is currently expanded
     var expandedMemberName by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -67,7 +67,7 @@ fun AboutScreen(navController: NavController) {
             }
         }
 
-        // --- CORPO (Scrollabile) ---
+        // --- BODY (Scrollable) ---
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -75,32 +75,31 @@ fun AboutScreen(navController: NavController) {
                 .padding(24.dp)
         ) {
 
-        //    Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Gruppo 8",
+                text = "Group 8",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.Black
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Siamo cinque studenti di Ingegneria del Cinema con specializzazioni diverse. Abbiamo unito le nostre competenze per progettare l'esperienza phygital di Upics.",
+                text = "We are five Cinema Engineering students with different specializations. We combined our skills to design the phygital experience of Upics.",
                 fontSize = 15.sp,
                 color = Color.DarkGray,
                 lineHeight = 22.sp
             )
 
             Spacer(modifier = Modifier.height(32.dp))
-            Text("Il nostro Team", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("(Tappa sulle card per i dettagli)", fontSize = 12.sp, color = Color.Gray)
+            Text("Our Team", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("(Tap on the cards for details)", fontSize = 12.sp, color = Color.Gray)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // LISTA MEMBRI
+            // TEAM MEMBERS LIST
             ExpandableTeamMemberCard(
                 icon = Icons.Default.ManageAccounts,
                 name = "Dario",
                 role = "Project Manager",
-                bio = "Dario coordina il team e assicura che la visione del progetto sia rispettata. Il punto di riferimento per l'organizzazione.",
+                bio = "Dario coordinates the team and ensures the project vision is respected. He is our main point of reference for organization and deadlines.",
                 isExpanded = expandedMemberName == "Dario",
                 onClick = { expandedMemberName = if (expandedMemberName == "Dario") null else "Dario" }
             )
@@ -109,7 +108,7 @@ fun AboutScreen(navController: NavController) {
                 icon = Icons.Default.DesignServices,
                 name = "Marco",
                 role = "UI Designer",
-                bio = "Marco ha curato l'interfaccia utente, definendo lo stile visivo e l'estetica generale dell'applicazione.",
+                bio = "Marco crafted the user interface, defining the visual style, colors, and overall aesthetics of the application.",
                 isExpanded = expandedMemberName == "Marco",
                 onClick = { expandedMemberName = if (expandedMemberName == "Marco") null else "Marco" }
             )
@@ -118,7 +117,7 @@ fun AboutScreen(navController: NavController) {
                 icon = Icons.Default.Brush,
                 name = "Salvatore",
                 role = "UX Designer",
-                bio = "Salvatore si è concentrato sull'esperienza utente e sui flussi di navigazione per rendere l'app intuitiva.",
+                bio = "Salvatore focused on the user experience and navigation flows to make the app intuitive, seamless, and easy to use.",
                 isExpanded = expandedMemberName == "Salvatore",
                 onClick = { expandedMemberName = if (expandedMemberName == "Salvatore") null else "Salvatore" }
             )
@@ -127,7 +126,7 @@ fun AboutScreen(navController: NavController) {
                 icon = Icons.Default.Code,
                 name = "Andrea",
                 role = "Developer",
-                bio = "Andrea ha tradotto il design in codice, occupandosi della logica e del funzionamento tecnico dell'app.",
+                bio = "Andrea translated the design into working code, taking care of the app's logic, image processing, and technical functioning.",
                 isExpanded = expandedMemberName == "Andrea",
                 onClick = { expandedMemberName = if (expandedMemberName == "Andrea") null else "Andrea" }
             )
@@ -136,7 +135,7 @@ fun AboutScreen(navController: NavController) {
                 icon = Icons.Default.Engineering,
                 name = "Giulia",
                 role = "Maker",
-                bio = "Giulia ha progettato e realizzato il prototipo fisico della vending machine che interagisce con l'app.",
+                bio = "Giulia designed and built the physical prototype of the vending machine that seamlessly interacts with our application.",
                 isExpanded = expandedMemberName == "Giulia",
                 onClick = { expandedMemberName = if (expandedMemberName == "Giulia") null else "Giulia" }
             )
@@ -144,7 +143,7 @@ fun AboutScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(40.dp))
         }
 
-        // --- BARRA INFERIORE COERENTE ---
+        // --- CONSISTENT BOTTOM BAR ---
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = Color.White,
@@ -170,6 +169,7 @@ fun AboutScreen(navController: NavController) {
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
+
 
             }
         }
@@ -220,7 +220,7 @@ fun ExpandableTeamMemberCard(
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Placeholder per foto
+                // Photo Placeholder
                 Surface(
                     modifier = Modifier.fillMaxWidth().height(150.dp),
                     shape = RoundedCornerShape(12.dp),
