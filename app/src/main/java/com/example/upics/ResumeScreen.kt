@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,10 +103,14 @@ fun ResumeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFAFAFA))) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFFFAFAFA))) {
         if (isLandscape) {
             Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(), contentAlignment = Alignment.Center) {
                     HeroPolaroidCapturable(photoUri, editState, actionAfterExport) { bmp ->
                         val savedUri = saveJpegToGallery(context, bmp)
                         if (savedUri != null) {
@@ -123,8 +129,12 @@ fun ResumeScreen(
                         actionAfterExport = ""
                     }
                 }
-                Surface(modifier = Modifier.width(360.dp).fillMaxHeight(), color = Color.White, shadowElevation = 16.dp) {
-                    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
+                Surface(modifier = Modifier
+                    .width(360.dp)
+                    .fillMaxHeight(), color = Color.White, shadowElevation = 16.dp) {
+                    Column(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp), verticalArrangement = Arrangement.Center) {
                         ResumeContent(quantity, totalPrice, termsAccepted, showValidationError, hasCredit,
                             { quantity = it }, { termsAccepted = it; if (it) showValidationError = false },
                             { navController.popBackStack() }, { actionAfterExport = "SAVE" },
@@ -136,27 +146,38 @@ fun ResumeScreen(
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 CommonHeader()
-                Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 40.dp), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp), contentAlignment = Alignment.Center) {
                     HeroPolaroidCapturable(photoUri, editState, actionAfterExport) { bmp ->
                         val savedUri = saveJpegToGallery(context, bmp)
                         if (savedUri != null) {
-                            // MAGIA: Salviamo il link della foto nella Galleria dell'App!
-                            if (!TransferState.savedPhotos.contains(savedUri.toString())) {
-                                TransferState.savedPhotos = listOf(savedUri.toString()) + TransferState.savedPhotos
-                            }
-                            if (actionAfterExport == "SAVE") {
-                                Toast.makeText(context, "Saved to Gallery!", Toast.LENGTH_SHORT).show()
-                            } else if (actionAfterExport == "PRINT") {
+                            // ... logica per salvare la foto
+
+                            if (actionAfterExport == "PRINT") {
                                 TransferState.credits -= 1
                                 creditCount = TransferState.credits
-                                navController.navigate("audio_connect/${Uri.encode(savedUri.toString())}")
+
+                                // --- 1. GENERA IL PIN ---
+                                // Genera 4 numeri casuali e li unisce in una stringa (es. "1234")
+                                var generatedPin = "0000"
+                                while (generatedPin == "0000") {
+                                    generatedPin = (1..4).joinToString("") { (0..9).random().toString() }
+                                }
+                                Firebase.database.getReference("VendingMachines/VM001/pairing_tones").setValue(generatedPin)
+                                // --- 2. MODIFICA LA NAVIGAZIONE ---
+                                // Aggiungi il pin alla rotta
+                                navController.navigate("audio_connect/${Uri.encode(savedUri.toString())}/$generatedPin")
                             }
                         }
                         actionAfterExport = ""
                     }
                 }
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp), color = Color.White, shadowElevation = 16.dp) {
-                    Column(modifier = Modifier.padding(24.dp).navigationBarsPadding()) {
+                    Column(modifier = Modifier
+                        .padding(24.dp)
+                        .navigationBarsPadding()) {
                         ResumeContent(quantity, totalPrice, termsAccepted, showValidationError, hasCredit,
                             { quantity = it }, { termsAccepted = it; if (it) showValidationError = false },
                             { navController.popBackStack() }, { actionAfterExport = "SAVE" },
@@ -191,7 +212,9 @@ fun ColumnScope.ResumeContent(
         onClick = onSaveToGallery,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, Color.Black),
-        modifier = Modifier.fillMaxWidth().height(48.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
     ) {
         Text("Save to Gallery (Free)", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
     }
@@ -203,13 +226,17 @@ fun ColumnScope.ResumeContent(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.Black)
         }
         if (hasCredit) {
-            Button(onClick = onPrint, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A), contentColor = Color.White), modifier = Modifier.weight(1f).height(56.dp)) {
+            Button(onClick = onPrint, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A), contentColor = Color.White), modifier = Modifier
+                .weight(1f)
+                .height(56.dp)) {
                 Icon(Icons.Default.Print, null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Print", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         } else {
-            Button(onClick = onBuyCredit, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), modifier = Modifier.weight(1f).height(56.dp)) {
+            Button(onClick = onBuyCredit, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), modifier = Modifier
+                .weight(1f)
+                .height(56.dp)) {
                 Icon(Icons.Default.CreditCard, null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Buy Credit", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -224,10 +251,14 @@ fun HeroPolaroidCapturable(photoUri: Uri, editState: PhotoEditState, actionAfter
     val graphicsLayer = rememberGraphicsLayer()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Box(
-        modifier = Modifier.then(if (isLandscape) Modifier.fillMaxHeight(0.9f) else Modifier.fillMaxWidth()).aspectRatio(0.85f).rotate(0f).drawWithContent {
-            graphicsLayer.record { this@drawWithContent.drawContent() }
-            drawLayer(graphicsLayer)
-        },
+        modifier = Modifier
+            .then(if (isLandscape) Modifier.fillMaxHeight(0.9f) else Modifier.fillMaxWidth())
+            .aspectRatio(0.85f)
+            .rotate(0f)
+            .drawWithContent {
+                graphicsLayer.record { this@drawWithContent.drawContent() }
+                drawLayer(graphicsLayer)
+            },
         contentAlignment = Alignment.Center
     ) { Surface(color = Color.White, shape = RoundedCornerShape(2.dp)) { PolaroidFinalPreviewNoShadow(photoUri, editState) } }
 
@@ -351,11 +382,27 @@ fun PolaroidFinalPreviewNoShadow(photoUri: Uri, editState: PhotoEditState) {
     val context = LocalContext.current
     val matrix = FilterUtils.filters.find { it.name == editState.filterName }?.colorMatrix
     Column(modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 28.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFFEEEEEE)).clip(RectangleShape)) {
-            Image(painter = rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).build()), contentDescription = null, contentScale = ContentScale.Crop, colorFilter = if (matrix != null) ColorFilter.colorMatrix(matrix) else null, modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = editState.scaleX * editState.zoom, scaleY = editState.scaleY * editState.zoom, rotationZ = editState.rotation, translationX = editState.panX, translationY = editState.panY))
-            editState.stickers.forEach { sticker -> Box(modifier = Modifier.offset { IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt()) }.graphicsLayer(scaleX = sticker.scale, scaleY = sticker.scale)) { Text(text = sticker.emoji, fontSize = 40.sp) } }
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(Color(0xFFEEEEEE))
+            .clip(RectangleShape)) {
+            Image(painter = rememberAsyncImagePainter(ImageRequest.Builder(context).data(photoUri).build()), contentDescription = null, contentScale = ContentScale.Crop, colorFilter = if (matrix != null) ColorFilter.colorMatrix(matrix) else null, modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = editState.scaleX * editState.zoom,
+                    scaleY = editState.scaleY * editState.zoom,
+                    rotationZ = editState.rotation,
+                    translationX = editState.panX,
+                    translationY = editState.panY
+                ))
+            editState.stickers.forEach { sticker -> Box(modifier = Modifier
+                .offset { IntOffset(sticker.offsetX.roundToInt(), sticker.offsetY.roundToInt()) }
+                .graphicsLayer(scaleX = sticker.scale, scaleY = sticker.scale)) { Text(text = sticker.emoji, fontSize = 40.sp) } }
         }
-        Box(modifier = Modifier.fillMaxWidth().height(46.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp), contentAlignment = Alignment.Center) {
             val caption = editState.caption.orEmpty()
             Text(text = if (caption.isBlank()) "" else caption, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Cursive, color = Color.Black, textAlign = TextAlign.Center, maxLines = 1)
         }

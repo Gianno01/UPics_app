@@ -117,11 +117,21 @@ fun AppNavigation() {
 
         // 5. AUDIO CONNECT SCREEN (NUOVO PASSAGGIO)
         composable(
-            route = "audio_connect/{photoUri}",
-            arguments = listOf(navArgument("photoUri") { type = NavType.StringType })
+            route = "audio_connect/{photoUri}/{pinCode}",
+            arguments = listOf(
+                navArgument("photoUri") { type = NavType.StringType },
+                navArgument("pinCode") { type = NavType.StringType }
+            )
         ) { backStackEntry ->
-            val uriString = backStackEntry.arguments?.getString("photoUri") ?: ""
-            AudioConnectScreen(navController = navController, encodedUri = uriString)        }
+            val photoUriString = backStackEntry.arguments?.getString("photoUri")
+            val pinCodeString = backStackEntry.arguments?.getString("pinCode")
+
+            AudioConnectScreen(
+                navController = navController,
+                encodedUri = photoUriString,
+                pinCode = pinCodeString // Passa il PIN come stringa
+            )
+        }
 
         // 6. PRINTING SCREEN (STAMPA)
         composable(

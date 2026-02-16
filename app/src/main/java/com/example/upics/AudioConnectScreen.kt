@@ -32,7 +32,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 
 @Composable
-fun AudioConnectScreen(navController: NavController, encodedUri: String?) {
+fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCode: String?) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
