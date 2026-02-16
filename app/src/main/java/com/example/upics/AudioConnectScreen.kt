@@ -30,9 +30,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
-
+import android.media.AudioManager
+import android.media.ToneGenerator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 @Composable
 fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCode: String?) {
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -135,7 +140,49 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                 Spacer(modifier = Modifier.height(48.dp))
 
                 RadarButton(isPlaying) {
-                    if (!isPlaying) { isPlaying = true; connectionSuccess = false }
+                    if (!isPlaying) {
+                        // Avvia la coroutine per la riproduzione dei toni
+                        coroutineScope.launch {
+                            isPlaying = true
+                            connectionSuccess = false
+
+                            // --- INIZIO LOGICA DTMF ---
+                            if (pinCode != null) {
+                                // Esegui la generazione dei toni su un thread separato (IO)
+                                // per non bloccare la coroutine principale per troppo tempo.
+                                withContext(Dispatchers.IO) {
+                                    val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100) // Volume
+                                    pinCode.forEach { char ->
+                                        val toneType = when (char) {
+                                            '1' -> ToneGenerator.TONE_DTMF_1
+                                            '2' -> ToneGenerator.TONE_DTMF_2
+                                            '3' -> ToneGenerator.TONE_DTMF_3
+                                            '4' -> ToneGenerator.TONE_DTMF_4
+                                            '5' -> ToneGenerator.TONE_DTMF_5
+                                            '6' -> ToneGenerator.TONE_DTMF_6
+                                            '7' -> ToneGenerator.TONE_DTMF_7
+                                            '8' -> ToneGenerator.TONE_DTMF_8
+                                            '9' -> ToneGenerator.TONE_DTMF_9
+                                            '0' -> ToneGenerator.TONE_DTMF_0
+                                            else -> -1
+                                        }
+
+                                        if (toneType != -1) {
+                                            toneGenerator.startTone(toneType, 300) // Durata tono: 200ms
+                                            delay(400) // Pausa tra i toni
+                                        }
+                                    }
+                                    toneGenerator.release() // Rilascia le risorse
+                                }
+                            }
+                            // --- FINE LOGICA DTMF ---
+
+                            // Aggiorna lo stato al termine della riproduzione
+                            isPlaying = false
+                            connectionSuccess = true
+                            hasPlayedOnce = true
+                        }
+                    }
                     else { isPlaying = false }
                 }
 
@@ -306,3 +353,4 @@ fun DoneButton(navController: NavController, isEnabled: Boolean) {
         Text("Done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
+
