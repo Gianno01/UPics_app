@@ -27,6 +27,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -107,7 +109,6 @@ fun AboutScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(40.dp))
     }
-
 
     Box(
         modifier = Modifier
@@ -306,35 +307,56 @@ fun ExpandableTeamMemberCard(
                 }
             }
 
-            // Quando la carta è espansa, mostra Foto + Bio
+            // Quando la carta è espansa, mostra Foto Polaroid + Bio
             if (isExpanded) {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top // Allineati in alto per compensare la foto
                 ) {
-                    // LA VERA FOTO
-                    Image(
-                        painter = painterResource(id = imageRes),
-                        contentDescription = "Foto di $name",
-                        contentScale = ContentScale.Crop, // Ritaglia l'immagine per riempire il cerchio
+                    // --- FOTO IN STILE POLAROID ---
+                    Surface(
+                        color = Color.White,
                         modifier = Modifier
-                            .size(100.dp) // Dimensione dell'immagine
-                            .clip(CircleShape) // La taglia a cerchio perfetto
-                            .border(2.dp, Color(0xFF8BC34A), CircleShape) // Bordino verde carino
-                    )
+                            .padding(start = 4.dp)
+                            .rotate(-2f) // Leggera rotazione per dare l'effetto "foto appoggiata"
+                            .shadow(8.dp, RoundedCornerShape(2.dp)), // Ombra quadrata
+                        shape = RoundedCornerShape(2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(
+                                    start = 6.dp,
+                                    top = 6.dp,
+                                    end = 6.dp,
+                                    bottom = 16.dp // La banda inferiore più spessa tipica delle polaroid
+                                )
+                        ) {
+                            // Immagine quadrata all'interno del frame
+                            Image(
+                                painter = painterResource(id = imageRes),
+                                contentDescription = "Foto di $name",
+                                contentScale = ContentScale.Crop, // Assicura che riempia il riquadro senza deformarsi
+                                modifier = Modifier
+                                    .size(90.dp) // Dimensione fissa dell'immagine quadrata
+                                    .background(Color(0xFFEEEEEE)) // Colore di fondo se l'immagine carica lentamente
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(20.dp))
 
                     // LA BIO DI LATO
                     Text(
                         text = bio,
                         fontSize = 14.sp,
                         color = Color.DarkGray,
-                        lineHeight = 20.sp,
+                        lineHeight = 22.sp,
                         fontStyle = FontStyle.Italic,
-                        modifier = Modifier.weight(1f) // Occupa lo spazio rimanente a destra
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(top = 8.dp) // Allineiamo un po' il testo rispetto alla foto
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))

@@ -66,6 +66,7 @@ fun CommonHeader() {
             modifier = Modifier.size(60.dp)
         )
 
+        /*
         // Stato Connessione
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -82,6 +83,7 @@ fun CommonHeader() {
                 fontSize = 14.sp
             )
         }
+        */
     }
 }
 

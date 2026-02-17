@@ -358,7 +358,7 @@ fun PolaroidEditorView(
     Surface(
         color = Color.White,
         modifier = Modifier
-            .rotate(-2f)
+     //       .rotate(-2f)
             .shadow(10.dp, RoundedCornerShape(2.dp)),
         shape = RoundedCornerShape(2.dp)
     ) {
