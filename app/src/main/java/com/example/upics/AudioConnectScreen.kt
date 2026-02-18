@@ -155,7 +155,7 @@ fun AudioConnectScreen(navController: NavController, encodedUri: String?, pinCod
                                 isPlaying = false
                                 connectionSuccess = true
                                 hasPlayedOnce = true
-                                connectionStatus = "Print Successful! 🎉"
+                                connectionStatus = "Wait for the yellow light!"
                             }
                         }
                     }
